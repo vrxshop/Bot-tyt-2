@@ -1024,17 +1024,18 @@ TARIFFS = {
         "duration_days": None,
         "category": "main",
         "desc_ru": "✅Этот тариф включает в себя тарифы 5-10 включительно, вы получите весь контент которого вам хватит на ОЧЕНЬ ДОЛГО🔮\n✅Также этот тариф выдается навсегда, один раз купили и пользуетесь всегда"
-},
-    "12": {
-    "name_ru": "🎁 Бесплатный пробник",
-    "name_en": "🎁 Free trial",
-    "price_rub": 0,
-    "price_stars": 0,
-    "duration_ru": "Бессрочно",
-    "duration_en": "Forever",
-    "duration_days": None,
-    "category": "main",
-    "desc_ru": "✅ Этот тариф активирован у вас🧨\n\nДоступ к закрытым сообществам:\nhttps://t.me/+PulSgX5Bgz1iNDE5\nhttps://t.me/+hlZ_UpaWLLA2Mzk5 ✅"
+     },
+     "12": {
+     "name_ru": "🎁 Бесплатный пробник",
+     "name_en": "🎁 Free trial",
+     "price_rub": 0,
+     "price_stars": 0,
+     "duration_ru": "Бессрочно",
+     "duration_en": "Forever",
+     "duration_days": None,
+     "category": "main",
+     "desc_ru": "✅ Этот тариф активирован у вас🧨\n\nДоступ к закрытым сообществам:\nhttps://t.me/+PulSgX5Bgz1iNDE5\nhttps://t.me/+hlZ_UpaWLLA2Mzk5 ✅"
+    }
 }
 
 PROMO_CODES = {
