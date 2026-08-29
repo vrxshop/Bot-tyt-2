@@ -1101,7 +1101,10 @@ def format_date(date):
     return date.strftime("%d.%m.%Y")
 
 async def choose_payment_logic(callback: CallbackQuery, state: FSMContext, tariff_key: str):
-    tariff = TARIFFS[tariff_key]
+    tariff = TARIFFS.get(tariff_key)
+    if not tariff:
+        await callback.message.edit_text("❌ Тариф не найден. Попробуйте снова.")
+        return
     
     if tariff['price_rub'] == 0:
         lang = await get_lang(state)
@@ -2873,13 +2876,16 @@ async def process_card_payment(callback: CallbackQuery, state: FSMContext):
     tariff_key = parts[2]
     discount = int(parts[3]) if len(parts) > 3 else 0
     
+    tariff = TARIFFS.get(tariff_key)
+    if not tariff:
+        await callback.message.edit_text("❌ Тариф не найден. Попробуйте снова.")
+        return
+    
     lang = await get_lang(state)
     user_id = callback.from_user.id
     
-    tariff = TARIFFS[tariff_key]
     final_price = int(tariff['price_rub'] * (1 - discount / 100))
     
-    # Текст с номером телефона для копирования
     text = f"""
 💳 <b>Способ оплаты: Перевод на мобильную связь</b>
 
@@ -2903,8 +2909,8 @@ async def process_card_payment(callback: CallbackQuery, state: FSMContext):
         text,
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="📋 Скопировать номер", callback_data=f"copy_phone_{final_price}_{user_id}")],
-            [InlineKeyboardButton(text=LANG[lang]["btn_i_paid"], callback_data=f"i_paid_{tariff_key}_{discount}")],
-            [InlineKeyboardButton(text=LANG[lang]["btn_back"], callback_data="back_to_prices")]
+            [InlineKeyboardButton(text="✅ Я оплатил", callback_data=f"i_paid_{tariff_key}_{discount}")],
+            [InlineKeyboardButton(text="👈 НАЗАД", callback_data="back_to_prices")]
         ]),
         disable_web_page_preview=True
     )
