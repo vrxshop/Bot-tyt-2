@@ -973,8 +973,8 @@ TARIFFS = {
     "7": {
         "name_ru": "🏫в школе школьницы👩‍🎓",
         "name_en": "🏫schoolgirls at school👩‍🎓",
-        "price_rub": 450,
-        "price_stars": 450,
+        "price_rub": 399,
+        "price_stars": 399,
         "duration_ru": "1 месяц",
         "duration_en": "1 month",
         "duration_days": 30,
