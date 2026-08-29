@@ -897,17 +897,133 @@ LANG = {
 # ==================================================
 # ТАРИФЫ
 # ==================================================
+# ==================================================
+# ТАРИФЫ
+# ==================================================
+# ==================================================
+# ТАРИФЫ
+# ==================================================
 TARIFFS = {
-    "test": {
-        "name_ru": "🧪 Тестовый тариф (10 ₽)",
-        "name_en": "🧪 Test tariff (10 ₽)",
-        "price_rub": 10,
-        "price_stars": 10,
-        "duration_ru": "1 день",
-        "duration_en": "1 day",
-        "duration_days": 1,
+    "1": {
+        "name_ru": "🔮2000 медиа✅",
+        "name_en": "🔮2000 media✅",
+        "price_rub": 199,
+        "price_stars": 199,
+        "duration_ru": "1 месяц",
+        "duration_en": "1 month",
+        "duration_days": 30,
         "category": "main",
-        "desc_ru": "🧪 Тестовый доступ на 1 день за 10 рублей.\n\nИспользуется для проверки работы системы."
+        "desc_ru": "2000 отб0рного koнtента🔮 Для тех кто хочет проверить контент"
+    },
+    "2": {
+        "name_ru": "🔮4000 медиа✅",
+        "name_en": "🔮4000 media✅",
+        "price_rub": 299,
+        "price_stars": 299,
+        "duration_ru": "1 месяц",
+        "duration_en": "1 month",
+        "duration_days": 30,
+        "category": "main",
+        "desc_ru": "4000 отб0рного koнtента🔮 Маленький пак"
+    },
+    "3": {
+        "name_ru": "🔮6000 медиа✅",
+        "name_en": "🔮6000 media✅",
+        "price_rub": 399,
+        "price_stars": 399,
+        "duration_ru": "1 месяц",
+        "duration_en": "1 month",
+        "duration_days": 30,
+        "category": "main",
+        "desc_ru": "6000 отб0рного koнtента🔮 Средний пак"
+    },
+    "4": {
+        "name_ru": "🔮8000 медиа ✅",
+        "name_en": "🔮8000 media ✅",
+        "price_rub": 499,
+        "price_stars": 499,
+        "duration_ru": "1 месяц",
+        "duration_en": "1 month",
+        "duration_days": 30,
+        "category": "main",
+        "desc_ru": "8000 отб0рного koнtента🔮 ✅Выбор наших пользователей✅ большой пак уже есть много что посмотреть"
+    },
+    "5": {
+        "name_ru": "🔮10000 медиа✅",
+        "name_en": "🔮10000 media✅",
+        "price_rub": 599,
+        "price_stars": 599,
+        "duration_ru": "1 месяц",
+        "duration_en": "1 month",
+        "duration_days": 30,
+        "category": "main",
+        "desc_ru": "10000 отб0рного koнtента🔮 Большой пак хватит на очень долго"
+    },
+    "6": {
+        "name_ru": "🪷Wк0льницы🪻",
+        "name_en": "🪷schoolgirls🪻",
+        "price_rub": 299,
+        "price_stars": 299,
+        "duration_ru": "1 месяц",
+        "duration_en": "1 month",
+        "duration_days": 30,
+        "category": "main",
+        "desc_ru": "K0нtент с шко/\ницами 7-14 lvl со всего снг\n\nВАЖНО! В этом тарифе контент с Deвочkами 7-14 lvl, а не в школе, если хотите в школе смотрите тариф \"в школе школьницы\" На один тариф ниже\n\n500/60 медиа/фото 👩‍🎓"
+    },
+    "7": {
+        "name_ru": "🏫в школе школьницы👩‍🎓",
+        "name_en": "🏫schoolgirls at school👩‍🎓",
+        "price_rub": 450,
+        "price_stars": 450,
+        "duration_ru": "1 месяц",
+        "duration_en": "1 month",
+        "duration_days": 30,
+        "category": "main",
+        "desc_ru": "310/30 медиа/фото Самого отборного контента из всех школ россии✅, только качевственный свежий контент в отличном качестве🔮 Вы точно найдете то что искали\n\n310/30 медиа/фото✅"
+    },
+    "8": {
+        "name_ru": "🔮₽абыни + с/\ивы + krужки ✅",
+        "name_en": "🔮Slaves + Leaks + Mugs ✅",
+        "price_rub": 330,
+        "price_stars": 330,
+        "duration_ru": "1 месяц",
+        "duration_en": "1 month",
+        "duration_days": 30,
+        "category": "main",
+        "desc_ru": "Большой тариф, сливы кружков рабынь, школьниц, студенток, выполняют задания, показывают себя, вы точно найдете то что вам по душе✅\n\n1100/30 медиа/фото✅"
+    },
+    "9": {
+        "name_ru": "🔨Uzносы + 3аklадчицы + Сп0₽тики🩸",
+        "name_en": "🔨Assault + Stashes + Athletes🩸",
+        "price_rub": 399,
+        "price_stars": 399,
+        "duration_ru": "1 месяц",
+        "duration_en": "1 month",
+        "duration_days": 30,
+        "category": "main",
+        "desc_ru": "И3но$илования д3вушек дома, в bанне, в ле$у, избиение спо₽тиками на снегу, асвальте, ₽аздевают, з@сtавляют ¢осать✅\n\n550/10 медиа/фото✅"
+    },
+    "10": {
+        "name_ru": "🔮Младенцы 0-5 lvl🔮",
+        "name_en": "🔮Babies 0-5 lvl🔮",
+        "price_rub": 350,
+        "price_stars": 350,
+        "duration_ru": "1 месяц",
+        "duration_en": "1 month",
+        "duration_days": 30,
+        "category": "main",
+        "desc_ru": "Видео с mлад3нцами и ново₽ожdенными самый во3раст✅\n\n440 медиа ✅"
+    },
+    "11": {
+        "name_ru": "🫦Все включено 2026✅",
+        "name_en": "🫦All inclusive 2026✅",
+        "price_rub": 999,
+        "price_stars": 999,
+        "duration_ru": "Бессрочно",
+        "duration_en": "Forever",
+        "duration_days": None,
+        "category": "main",
+        "desc_ru": "✅Этот тариф включает в себя тарифы 5-10 включительно, вы получите весь контент которого вам хватит на ОЧЕНЬ ДОЛГО🔮\n✅Также этот тариф выдается навсегда, один раз купили и пользуетесь всегда"
     }
 }
 
@@ -1140,11 +1256,26 @@ def get_main_keyboard(lang):
 
 def get_tariff_keyboard(lang):
     buttons = []
+    row = []
     for key, data in TARIFFS.items():
-        if data.get("category") == "main":
-            name = data['name_ru'] if lang == 'ru' else data['name_en']
+        name = data['name_ru'] if lang == 'ru' else data['name_en']
+        
+        # Последний тариф ("Все включено") — в 1 столбец
+        if key == "11":
+            if row:
+                buttons.append(row)
+                row = []
             buttons.append([InlineKeyboardButton(text=name, callback_data=f"tariff_{key}")])
-    buttons.append([InlineKeyboardButton(text="👈🏻 Паки", callback_data="show_paki")])
+        else:
+            row.append(InlineKeyboardButton(text=name, callback_data=f"tariff_{key}"))
+            if len(row) == 2:
+                buttons.append(row)
+                row = []
+    
+    if row:
+        buttons.append(row)
+    
+    # КНОПКА "ПАКИ" УДАЛЕНА!
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 def get_paki_keyboard(lang):
