@@ -1181,7 +1181,7 @@ def get_payment_method_keyboard(tariff_key, discount_percent=0, lang="ru"):
         btn_stars = LANG[lang]["btn_pay_stars_disc"].format(disc=discount_percent)
         btn_crypto = LANG[lang]["btn_pay_crypto_disc"].format(disc=discount_percent)
     else:
-        btn_card = "📱 Моб. связь"
+        btn_card = "📱 Перевод на моб. связь"
         btn_stars = LANG[lang]["btn_pay_stars"]
         btn_crypto = LANG[lang]["btn_pay_crypto"]
 
@@ -2879,18 +2879,25 @@ async def process_card_payment(callback: CallbackQuery, state: FSMContext):
     tariff = TARIFFS[tariff_key]
     final_price = int(tariff['price_rub'] * (1 - discount / 100))
     
-    name = tariff['name_ru'] if lang == "ru" else tariff['name_en']
-    duration = tariff['duration_ru'] if lang == "ru" else tariff['duration_en']
-    
-    if discount > 0:
-        price_line = f"💰 Цена: <s>{tariff['price_rub']} RUB</s> → {final_price} RUB (-{discount}%)\n"
-    else:
-        price_line = f"💰 Цена: {final_price} RUB\n"
-    
-    text = LANG[lang]["pay_card"].format(
-        final=final_price,
-        user_id=user_id
-    )
+    # Текст с номером телефона для копирования
+    text = f"""
+💳 <b>Способ оплаты: Перевод на мобильную связь</b>
+
+💰 К оплате: {final_price}.00 RUB
+🆔 Ваш ID: {user_id}
+
+📌 <b>Реквизиты для оплаты:</b>
+
+📱 <code>+79899008622</code>  (нажми чтобы скопировать)
+🏢 Оператор: МТС
+
+⚠️ <b>Переводить на мобильную связь!</b>
+❌ НЕ НА БАНК! Иначе средства будут потеряны.
+
+❗️ Проверка ботом может занимать какое-то время (ручная проверка)
+❕ Если вы оплатили, нажмите обязательно кнопку «Я оплатил»
+❕ Если вы ждете больше 12 часов, напишите администратору
+"""
     
     await callback.message.edit_text(
         text,
