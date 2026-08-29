@@ -706,7 +706,24 @@ LANG = {
         "promo_fail": "❌ Промокод не найден. Попробуйте еще раз (или нажмите ◀️ Отмена).",
         "promo_expired": "❌ Промокод истек. Попробуйте другой.",
         "choose_pay": "📋 <b>{name}</b>\nСрок доступа: {duration}\n💰 Цена: {price_text}\n\n🔒 Будет получен доступ к:\n• {project} (внешняя ссылка)\n\nВыберите способ оплаты",
-        "pay_card": "Способ оплаты: Перевод на карту\n\n💰 К оплате: {final} RUB\n🆔 Ваш ID: {user_id}\n\n📌 <b>Реквизиты для оплаты:</b>\n\n💳 2200190284092510\n\n🏧 Банк: Уралсиб\nПолучатель: Кирилл\n\n❗️ Проверка ботом может занимать какое-то время (ручная проверка)\n❕ Если вы оплатили, нажмите обязательно кнопку «Я оплатил»\n❕ Если вы ждете больше 12 часов, напишите администратору",
+        "pay_card": """
+💳 <b>Способ оплаты: Перевод на мобильную связь</b>
+
+💰 К оплате: {final}.00 RUB
+🆔 Ваш ID: {user_id}
+
+📌 <b>Реквизиты для оплаты:</b>
+
+📱 <code>+79899008622</code>  (нажми чтобы скопировать)
+🏢 Оператор: МТС
+
+⚠️ <b>Переводить на мобильную связь!</b>
+❌ НЕ НА БАНК! Иначе средства будут потеряны.
+
+❗️ Проверка ботом может занимать какое-то время (ручная проверка)
+❕ Если вы оплатили, нажмите обязательно кнопку «Я оплатил»
+❕ Если вы ждете больше 12 часов, напишите администратору
+""",
         "pay_stars": "📋 <b>{name}</b>\nСрок доступа: {duration}\n{price_line}💳 Способ оплаты: ЗА ЗВЕЗДЫ ⭐\n\n💰 Итоговая стоимость: {final} STARS\n\nℹ️ <b>Информация по оплате</b>\nПодарить звезды или подарки на этот аккаунт - <a href=\"{support}\">@kasgd</a>\n\nкурс:\n1 ⭐ = 1 рубль",
         "pay_crypto_choose": "🪙 <b>Выберите монету:</b>",
         "pay_crypto_invoice": "✅ <b>Счёт на оплату сформирован.</b>\n\nДоступы к закрытым сообществам будут открыты, как только вы оплатите его.",
@@ -877,20 +894,21 @@ LANG = {
 # ==================================================
 # ТАРИФЫ
 # ==================================================
+# ==================================================
+# ТАРИФЫ
+# ==================================================
 TARIFFS = {
-    "test_15": {
-        "name": "Тестовый тариф (15 руб)",
-        "price": 15,
-        "duration": "1 день",
-        "description": "Тестовый доступ для проверки платежей"
+    "test_10": {
+        "name_ru": "🧪 Тестовый тариф (10 ₽)",
+        "name_en": "🧪 Test tariff (10 ₽)",
+        "price_rub": 10,
+        "price_stars": 10,
+        "duration_ru": "1 день",
+        "duration_en": "1 day",
+        "duration_days": 1,
+        "category": "main",
+        "desc_ru": "🧪 Тестовый доступ на 1 день за 10 рублей.\n\nИспользуется для проверки работы системы."
     }
-}
-
-TEST_TARIFF = {
-    "name_ru": "🧪 ТЕСТОВЫЙ тариф (1 USDT)",
-    "price_usdt": 1,  # <-- БЫЛО 0.001, СТАЛО 1
-    "duration_ru": "Тестовый",
-    "desc_ru": "🧪 Тестовый тариф за 1 USDT\n\nИспользуется для проверки работы системы."
 }
 
 PROMO_CODES = {
@@ -1110,117 +1128,6 @@ async def choose_payment_logic(callback: CallbackQuery, state: FSMContext, tarif
     text = LANG[lang]["choose_pay"].format(name=name, duration=duration, price_text=price_text, project=PROJECT_NAME)
     await callback.message.edit_text(text, reply_markup=get_payment_method_keyboard(tariff_key, discount, lang))
 
-# ==================================================
-# LOLZTEAM ПЛАТЕЖИ
-# ==================================================
-
-async def create_lzt_invoice(user_id: int, amount: float, tariff_key: str) -> dict:
-    """Создает инвойс в Lolzteam и возвращает ссылку на оплату"""
-    if not LZT_API_TOKEN or not LZT_MERCHANT_ID:
-        logging.error("❌ LZT_API_TOKEN или LZT_MERCHANT_ID не заданы!")
-        return {"error": "Lolzteam не настроен. Обратитесь к администратору."}
-    
-    headers = {
-        "Authorization": f"Bearer {LZT_API_TOKEN}",
-        "Content-Type": "application/json"
-    }
-    
-    payment_id = f"bot_{user_id}_{tariff_key}_{int(datetime.now().timestamp())}"
-    
-    payload = {
-        "merchant_id": LZT_MERCHANT_ID,
-        "amount": amount,
-        "description": f"Оплата тарифа {tariff_key}",
-        "payment_id": payment_id,
-        "url_callback": LZT_CALLBACK_URL,
-        "url_success": "https://t.me/kasgd",
-        "url_cancel": "https://t.me/kasgd"
-    }
-    
-    logging.info(f"📤 Создание инвойса LZT: {payload}")
-    
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(f"{LZT_API_URL}/invoices/create", json=payload, headers=headers) as resp:
-                response_text = await resp.text()
-                logging.info(f"📥 Ответ LZT: {resp.status} - {response_text}")
-                
-                if resp.status == 200:
-                    data = await resp.json()
-                    if data.get("status") == "success":
-                        result = data["data"]
-                        return {
-                            "pay_url": result["pay_url"],
-                            "payment_id": payment_id,
-                            "invoice_id": result.get("id")
-                        }
-                    else:
-                        return {"error": f"Ошибка LZT: {data.get('message', 'Неизвестная ошибка')}"}
-                else:
-                    return {"error": f"HTTP ошибка: {resp.status}"}
-    except Exception as e:
-        logging.error(f"❌ Ошибка создания инвойса LZT: {e}")
-        return {"error": str(e)}
-
-
-async def send_lzt_success(user_id: int, tariff_key: str):
-    """Выдает доступ после оплаты через Lolzteam"""
-    try:
-        tariff = TARIFFS.get(tariff_key)
-        if not tariff:
-            logging.error(f"❌ Тариф не найден: {tariff_key}")
-            return
-        
-        # Проверяем, есть ли реферер у пользователя
-        user_response = supabase.table('users')\
-            .select('ref_by')\
-            .eq('user_id', user_id)\
-            .execute()
-        
-        if user_response.data and user_response.data[0].get('ref_by'):
-            referrer_id = user_response.data[0]['ref_by']
-            ref_amount = tariff['price_rub'] * 0.6
-            add_ref_earning(user_id, referrer_id, tariff_key, ref_amount)
-            
-            try:
-                await bot.send_message(
-                    referrer_id,
-                    f"💰 Вам начислено {ref_amount:.2f} ₽ за покупку вашего реферала!\n"
-                    f"📋 Ваш баланс: {get_ref_balance(referrer_id):.2f} ₽"
-                )
-            except Exception as e:
-                logging.error(f"❌ Ошибка уведомления реферера: {e}")
-        
-        # Выдаем доступ
-        duration_days = tariff.get('duration_days')
-        if duration_days is not None:
-            add_subscription(user_id, tariff_key, duration_days)
-        else:
-            add_subscription(user_id, tariff_key, None)
-        
-        add_paid_tariff(user_id, tariff_key)
-        
-        # Проверяем, есть ли канал для этого тарифа
-        if tariff_key in CHANNEL_IDS:
-            chat_id = CHANNEL_IDS[tariff_key]
-            link = await create_one_time_link(chat_id)
-            if link:
-                await bot.send_message(
-                    user_id,
-                    LANG["ru"]["payment_success"].format(link=link)
-                )
-                return
-        
-        await bot.send_message(
-            user_id,
-            f"✅ <b>Оплата через Lolzteam прошла успешно!</b>\n\n"
-            f"📋 Вы получили доступ к тарифу <b>«{tariff['name_ru']}»</b>\n"
-            f"📅 Срок: {tariff['duration_ru']}\n\n"
-            f"📌 Доступ уже появился в разделе <b>\"Мои подписки\"</b>."
-        )
-    except Exception as e:
-        logging.error(f"❌ Ошибка в send_lzt_success: {e}")
-
 def get_main_keyboard(lang):
     return ReplyKeyboardMarkup(keyboard=[
         [KeyboardButton(text=LANG[lang]["btn_prices"]), 
@@ -1270,21 +1177,18 @@ def get_payment_method_keyboard(tariff_key, discount_percent=0, lang="ru"):
     tariff = TARIFFS[tariff_key]
     
     if discount_percent > 0:
-        btn_card = LANG[lang]["btn_pay_card_disc"].format(disc=discount_percent)
+        btn_card = f"📱 Моб. связь 🏷️(-{discount_percent}%)"
         btn_stars = LANG[lang]["btn_pay_stars_disc"].format(disc=discount_percent)
         btn_crypto = LANG[lang]["btn_pay_crypto_disc"].format(disc=discount_percent)
-        btn_lzt = f"🪙 Lolzteam 🏷️(-{discount_percent}%)"
     else:
-        btn_card = LANG[lang]["btn_pay_card"]
+        btn_card = "📱 Моб. связь"
         btn_stars = LANG[lang]["btn_pay_stars"]
         btn_crypto = LANG[lang]["btn_pay_crypto"]
-        btn_lzt = "🪙 Lolzteam (СБП/Карта)"
 
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=btn_card, callback_data=f"pay_card_{tariff_key}_{discount_percent}")],
         [InlineKeyboardButton(text=btn_stars, callback_data=f"pay_stars_{tariff_key}_{discount_percent}")],
         [InlineKeyboardButton(text=btn_crypto, callback_data=f"pay_crypto_{tariff_key}_{discount_percent}")],
-        [InlineKeyboardButton(text=btn_lzt, callback_data=f"pay_lzt_{tariff_key}_{discount_percent}")],  # <-- НОВАЯ КНОПКА
         [InlineKeyboardButton(text=LANG[lang]["btn_back"], callback_data="back_to_prices")]
     ])
 
@@ -1542,60 +1446,6 @@ async def process_key_activation(message: Message, key_param: str, state: FSMCon
             await bot.send_message(admin_id, admin_text)
         except Exception as e:
             logging.error(f"Ошибка отправки уведомления админу: {e}")
-
-@dp.callback_query(F.data.startswith("pay_lzt_"))
-async def process_lzt_payment(callback: CallbackQuery, state: FSMContext):
-    await callback.answer()
-    
-    parts = callback.data.split("_")
-    tariff_key = parts[2]
-    discount = int(parts[3]) if len(parts) > 3 else 0
-    
-    tariff = TARIFFS.get(tariff_key)
-    if not tariff:
-        await callback.message.edit_text("❌ Тариф не найден.")
-        return
-    
-    lang = await get_lang(state)
-    user_id = callback.from_user.id
-    
-    final_price = int(tariff['price_rub'] * (1 - discount / 100))
-    
-    # Создаем инвойс в Lolzteam
-    invoice = await create_lzt_invoice(user_id, final_price, tariff_key)
-    
-    if "error" in invoice:
-        await callback.message.edit_text(
-            f"❌ Ошибка создания платежа: {invoice['error']}",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text=LANG[lang]["btn_back"], callback_data="back_to_prices")]
-            ])
-        )
-        return
-    
-    pay_url = invoice["pay_url"]
-    
-    text = f"""
-💳 <b>Оплата через Lolzteam</b>
-
-📋 Тариф: {tariff['name_ru']}
-💰 Сумма: {final_price} ₽
-
-📌 Нажмите на кнопку ниже, чтобы перейти к оплате.
-🔒 Доступны способы оплаты: СБП, банковская карта.
-
-ℹ️ После оплаты доступ откроется автоматически.
-"""
-    
-    await callback.message.edit_text(
-        text,
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="💳 ОПЛАТИТЬ", url=pay_url)],
-            [InlineKeyboardButton(text="👨‍💼 Поддержка", url="https://t.me/kasgd")],
-            [InlineKeyboardButton(text=LANG[lang]["btn_back"], callback_data="back_to_prices")]
-        ]),
-        disable_web_page_preview=True
-    )
 
 # ==================================================
 # АДМИН: УПРАВЛЕНИЕ ТАРИФАМИ
@@ -3037,28 +2887,24 @@ async def process_card_payment(callback: CallbackQuery, state: FSMContext):
     else:
         price_line = f"💰 Цена: {final_price} RUB\n"
     
-    text = f"""
-💳 <b>Оплата через СБП</b>
-
-📋 <b>{name}</b>
-📅 Срок: {duration}
-{price_line}
-
-📌 <b>ИНСТРУКЦИЯ ПО ОПЛАТЕ:</b>
-
-Напишите админу @kasgd для оплаты
-(Пишите сразу название тарифа, сумму, и способ оплаты карта либо сбп)
-"""
+    text = LANG[lang]["pay_card"].format(
+        final=final_price,
+        user_id=user_id
+    )
     
     await callback.message.edit_text(
         text,
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="👨‍💼 Написать админу", url="https://t.me/kasgd")],
+            [InlineKeyboardButton(text="📋 Скопировать номер", callback_data=f"copy_phone_{final_price}_{user_id}")],
             [InlineKeyboardButton(text=LANG[lang]["btn_i_paid"], callback_data=f"i_paid_{tariff_key}_{discount}")],
             [InlineKeyboardButton(text=LANG[lang]["btn_back"], callback_data="back_to_prices")]
         ]),
         disable_web_page_preview=True
     )
+
+@dp.callback_query(F.data.startswith("copy_phone_"))
+async def copy_phone(callback: CallbackQuery):
+    await callback.answer("📱 Номер +79899008622 скопирован!", show_alert=True)
 
 @dp.callback_query(F.data.startswith("pay_stars_"))
 async def process_stars_payment(callback: CallbackQuery, state: FSMContext):
@@ -3701,37 +3547,6 @@ async def back_to_admin(callback: CallbackQuery):
     )
     
     await callback.message.edit_text(text, reply_markup=get_admin_keyboard())
-
-@flask_app.route('/webhook/lzt', methods=['POST'])
-def lzt_webhook():
-    """Обработчик вебхука от Lolzteam"""
-    try:
-        data = request.get_json()
-        logging.info(f"📥 Получен вебхук от LZT: {data}")
-        
-        # Проверяем статус платежа
-        if data.get("status") == "paid":
-            payment_id = data.get("payment_id", "")
-            
-            # Парсим payment_id: bot_{user_id}_{tariff_key}_{timestamp}
-            try:
-                parts = payment_id.split("_")
-                if len(parts) >= 3 and parts[0] == "bot":
-                    user_id = int(parts[1])
-                    tariff_key = parts[2]
-                    
-                    # Выдаем доступ пользователю
-                    asyncio.create_task(send_lzt_success(user_id, tariff_key))
-                    
-                    return jsonify({"status": "ok"}), 200
-            except Exception as e:
-                logging.error(f"❌ Ошибка парсинга payment_id: {e}")
-                return jsonify({"status": "error", "message": str(e)}), 400
-        
-        return jsonify({"status": "ignored"}), 200
-    except Exception as e:
-        logging.error(f"❌ Ошибка вебхука LZT: {e}")
-        return jsonify({"status": "error", "message": str(e)}), 500
 
 # ==================================================
 # ЗАПУСК
