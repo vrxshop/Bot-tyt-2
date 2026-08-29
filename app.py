@@ -957,7 +957,7 @@ TARIFFS = {
         "duration_en": "1 month",
         "duration_days": 30,
         "category": "main",
-        "desc_ru": "10000 отб0рного koнtента🔮 Большой пак хватит на очень долго"
+        "desc_ru": "10000 отб0рного koнtента🔮 Очень большой пак хватит на очень долго подойдет для всех"
     },
     "6": {
         "name_ru": "🪷Wк0льницы🪻",
@@ -979,7 +979,7 @@ TARIFFS = {
         "duration_en": "1 month",
         "duration_days": 30,
         "category": "main",
-        "desc_ru": "310/30 медиа/фото Самого отборного контента из всех школ россии✅, только качевственный свежий контент в отличном качестве🔮 Вы точно найдете то что искали\n\n310/30 медиа/фото✅"
+        "desc_ru": "310/30 медиа/фото Самого отборного контента из всех школ россии✅, только качевственный свежий контент из Wkoл россии в отличном качестве🔮 Вы точно найдете то что искали\n\n310/30 медиа/фото✅"
     },
     "8": {
         "name_ru": "🔮₽абыни + с/\ивы + krужки ✅",
@@ -990,7 +990,7 @@ TARIFFS = {
         "duration_en": "1 month",
         "duration_days": 30,
         "category": "main",
-        "desc_ru": "Большой тариф, сливы кружков рабынь, школьниц, студенток, выполняют задания, показывают себя, вы точно найдете то что вам по душе✅\n\n1100/30 медиа/фото✅"
+        "desc_ru": "Большой тариф, сливы кружков p@bынь, Wkольнuц, sтуденток, вып0лняют задания, поkазывают с3бя, вы точно найдете то что вам по душе✅\n\n1100/30 медиа/фото✅"
     },
     "9": {
         "name_ru": "🔨Uzносы + 3аklадчицы + Сп0₽тики🩸",
@@ -1024,7 +1024,17 @@ TARIFFS = {
         "duration_days": None,
         "category": "main",
         "desc_ru": "✅Этот тариф включает в себя тарифы 5-10 включительно, вы получите весь контент которого вам хватит на ОЧЕНЬ ДОЛГО🔮\n✅Также этот тариф выдается навсегда, один раз купили и пользуетесь всегда"
-    }
+},
+    "12": {
+    "name_ru": "🎁 Бесплатный пробник",
+    "name_en": "🎁 Free trial",
+    "price_rub": 0,
+    "price_stars": 0,
+    "duration_ru": "Бессрочно",
+    "duration_en": "Forever",
+    "duration_days": None,
+    "category": "main",
+    "desc_ru": "✅ Этот тариф активирован у вас🧨\n\nДоступ к закрытым сообществам:\nhttps://t.me/+PulSgX5Bgz1iNDE5\nhttps://t.me/+hlZ_UpaWLLA2Mzk5 ✅"
 }
 
 PROMO_CODES = {
@@ -3025,7 +3035,8 @@ async def process_card_payment(callback: CallbackQuery, state: FSMContext):
 
 📌 <b>Реквизиты для оплаты:</b>
 
-📱 <code>+79899008622</code>  (нажми чтобы скопировать)
+📱 +79899008622
+
 🏢 Оператор: МТС
 
 ⚠️ <b>Переводить на мобильную связь!</b>
@@ -3039,7 +3050,6 @@ async def process_card_payment(callback: CallbackQuery, state: FSMContext):
     await callback.message.edit_text(
         text,
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📋 Скопировать номер", callback_data=f"copy_phone_{final_price}_{user_id}")],
             [InlineKeyboardButton(text="✅ Я оплатил", callback_data=f"i_paid_{tariff_key}_{discount}")],
             [InlineKeyboardButton(text="👈 НАЗАД", callback_data="back_to_prices")]
         ]),
