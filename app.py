@@ -467,21 +467,88 @@ def is_tariff_paid(user_id: int, tariff_key: str):
         logging.error(f"Ошибка проверки оплаты: {e}")
         return False
 
-def add_payment_request(user_id: int, username: str, tariff_key: str, amount: int, message_text: str = None, media_file_id: str = None, media_type: str = None):
+# ==================================================
+# ФУНКЦИИ РАБОТЫ С ЗАЯВКАМИ (Supabase)
+# ==================================================
+
+def add_payment_request(user_id: int, username: str, tariff_key: str, amount: int, 
+                        message_text: str = None, media_file_id: str = None, 
+                        media_type: str = None) -> int:
+    """Создает заявку на оплату в Supabase"""
     try:
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        cursor.execute('''
-            INSERT INTO payment_requests (user_id, username, tariff_key, amount, message_text, media_file_id, media_type)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''', (user_id, username, tariff_key, amount, message_text, media_file_id, media_type))
-        conn.commit()
-        request_id = cursor.lastrowid
-        conn.close()
-        return request_id
-    except Exception as e:
-        logging.error(f"Ошибка добавления заявки: {e}")
+        response = supabase.table('payment_requests').insert({
+            'user_id': user_id,
+            'username': username,
+            'tariff_key': tariff_key,
+            'amount': amount,
+            'message_text': message_text,
+            'media_file_id': media_file_id,
+            'media_type': media_type,
+            'status': 'pending'
+        }).execute()
+        
+        if response.data:
+            return response.data[0]['id']
         return None
+    except Exception as e:
+        logging.error(f"❌ Ошибка добавления заявки в Supabase: {e}")
+        return None
+
+
+def get_payment_request(request_id: int):
+    """Получает заявку из Supabase"""
+    try:
+        response = supabase.table('payment_requests')\
+            .select('*')\
+            .eq('id', request_id)\
+            .execute()
+        
+        if response.data:
+            # Преобразуем в кортеж для совместимости с существующим кодом
+            data = response.data[0]
+            return (
+                data['id'],
+                data['user_id'],
+                data['username'],
+                data['tariff_key'],
+                data['amount'],
+                data['message_text'],
+                data['media_file_id'],
+                data['media_type'],
+                data['status'],
+                data['created_at']
+            )
+        return None
+    except Exception as e:
+        logging.error(f"❌ Ошибка получения заявки из Supabase: {e}")
+        return None
+
+
+def update_payment_request_status(request_id: int, status: str):
+    """Обновляет статус заявки в Supabase"""
+    try:
+        supabase.table('payment_requests')\
+            .update({'status': status})\
+            .eq('id', request_id)\
+            .execute()
+        return True
+    except Exception as e:
+        logging.error(f"❌ Ошибка обновления статуса заявки: {e}")
+        return False
+
+
+def get_all_payment_requests(limit: int = 20):
+    """Получает список заявок из Supabase"""
+    try:
+        response = supabase.table('payment_requests')\
+            .select('*')\
+            .order('created_at', desc=True)\
+            .limit(limit)\
+            .execute()
+        return response.data
+    except Exception as e:
+        logging.error(f"❌ Ошибка получения заявок: {e}")
+        return []
 
 def get_payment_request(request_id: int):
     try:
@@ -3460,11 +3527,7 @@ async def admin_payment_requests(callback: CallbackQuery):
         await callback.answer("❌ Только для админов!", show_alert=True)
         return
     
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute('SELECT id, user_id, username, tariff_key, amount, created_at, status FROM payment_requests ORDER BY created_at DESC LIMIT 20')
-    requests = cursor.fetchall()
-    conn.close()
+    requests = get_all_payment_requests(20)
     
     if not requests:
         await callback.message.edit_text("📋 <b>Заявки на оплату</b>\n\nНет заявок на проверку.", reply_markup=get_admin_keyboard())
@@ -3473,8 +3536,8 @@ async def admin_payment_requests(callback: CallbackQuery):
     
     text = "📋 <b>Последние заявки на оплату</b>\n\n"
     for req in requests:
-        status_emoji = "⏳" if req[6] == "pending" else "✅" if req[6] == "confirmed" else "❌"
-        text += f"{status_emoji} #{req[0]} | Пользователь: {req[2]} | {req[4]} RUB | {req[5]}\n"
+        status_emoji = "⏳" if req['status'] == "pending" else "✅" if req['status'] == "confirmed" else "❌"
+        text += f"{status_emoji} #{req['id']} | Пользователь: {req['username']} | {req['amount']} RUB | {req['created_at'][:16]}\n"
     
     text += "\nДля просмотра заявки нажмите /view_request <номер>"
     
@@ -3493,17 +3556,13 @@ async def view_request(message: Message):
         await message.answer("❌ Использование: /view_request <id>")
         return
     
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM payment_requests WHERE id = ?', (request_id,))
-    req = cursor.fetchone()
-    conn.close()
+    req = get_payment_request(request_id)
     
     if not req:
         await message.answer("❌ Заявка не найдена.")
         return
     
-    lang = await get_lang(message)
+    lang = "ru"
     tariff_name = TARIFFS.get(req[3], {}).get('name_ru', req[3])
     
     text = f"""
@@ -3514,12 +3573,13 @@ async def view_request(message: Message):
 📋 Тариф: {tariff_name}
 💰 Сумма: {req[4]} RUB
 📝 Сообщение: {req[5] or "Нет"}
-📎 Медиа: {req[7] or "Нет"}
-📅 Создана: {req[8]}
-📊 Статус: {req[6]}
+📎 Медиа: {req[6] or "Нет"}
+📅 Создана: {req[9][:19] if req[9] else "Неизвестно"}
+📊 Статус: {req[8]}
 """
     
-    if req[7]:
+    # Отправляем с медиа если есть
+    if req[6] and req[7]:
         try:
             if req[7] == "photo":
                 await bot.send_photo(message.chat.id, req[6], caption=text, reply_markup=get_payment_request_keyboard(request_id, lang))
@@ -3608,15 +3668,11 @@ async def confirm_payment(callback: CallbackQuery):
     
     request_id = int(callback.data.replace("confirm_payment_", ""))
     
-    # Используем SQLite для получения заявки
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM payment_requests WHERE id = ?', (request_id,))
-    req = cursor.fetchone()
+    # Получаем заявку из Supabase
+    req = get_payment_request(request_id)
     
     if not req:
         await callback.answer("❌ Заявка не найдена", show_alert=True)
-        conn.close()
         return
     
     user_id = req[1]
@@ -3670,10 +3726,8 @@ async def confirm_payment(callback: CallbackQuery):
             "✅ Оплата подтверждена! Но возникла ошибка создания ключа. Напишите админу @kasgd."
         )
     
-    # Обновляем статус заявки
-    cursor.execute('UPDATE payment_requests SET status = "confirmed" WHERE id = ?', (request_id,))
-    conn.commit()
-    conn.close()
+    # Обновляем статус заявки в Supabase
+    update_payment_request_status(request_id, 'confirmed')
     
     await callback.message.delete()
     await callback.message.answer(f"✅ Оплата по заявке #{request_id} подтверждена! Пользователь уведомлен.")
