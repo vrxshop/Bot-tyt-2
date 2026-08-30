@@ -1121,6 +1121,10 @@ class PromoStates(StatesGroup):
     waiting_for_promo = State()
 
 class MailingStates(StatesGroup):
+    waiting_for_mail_type = State()  # Тип рассылки (всем или с подпиской)
+    waiting_for_content = State()     # Ожидание контента для рассылки
+
+class MailingStates(StatesGroup):
     waiting_for_content = State()
     waiting_for_mail_type = State()
 
@@ -1677,6 +1681,138 @@ async def cmd_admin(message: Message, state: FSMContext):
     )
     
     await message.answer(text, reply_markup=get_admin_keyboard())
+
+@dp.callback_query(F.data == "admin_mailing")
+async def admin_mailing(callback: CallbackQuery, state: FSMContext):
+    if callback.from_user.id not in ADMIN_IDS:
+        await callback.answer("❌ Только для админов!", show_alert=True)
+        return
+    
+    await callback.answer()
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="👥 Всем пользователям", callback_data="mail_all")],
+        [InlineKeyboardButton(text="📋 Только с подпиской", callback_data="mail_subscribers")],
+        [InlineKeyboardButton(text="◀️ Назад", callback_data="back_to_admin")]
+    ])
+    
+    await callback.message.edit_text(
+        "📨 <b>Рассылка</b>\n\n"
+        "Выберите, кому отправить рассылку:",
+        reply_markup=keyboard
+    )
+
+@dp.callback_query(F.data == "mail_all")
+async def mail_all(callback: CallbackQuery, state: FSMContext):
+    if callback.from_user.id not in ADMIN_IDS:
+        await callback.answer("❌ Только для админов!", show_alert=True)
+        return
+    
+    await callback.answer()
+    await state.update_data(mail_type="all")
+    
+    await callback.message.edit_text(
+        "📨 <b>Рассылка ВСЕМ пользователям</b>\n\n"
+        "Отправьте сообщение, которое хотите разослать.\n\n"
+        "Поддерживаются: текст, фото, видео, GIF, документы.\n\n"
+        "Для отмены нажмите /cancel"
+    )
+    await state.set_state(MailingStates.waiting_for_content)
+
+
+@dp.callback_query(F.data == "mail_subscribers")
+async def mail_subscribers(callback: CallbackQuery, state: FSMContext):
+    if callback.from_user.id not in ADMIN_IDS:
+        await callback.answer("❌ Только для админов!", show_alert=True)
+        return
+    
+    await callback.answer()
+    await state.update_data(mail_type="subscribers")
+    
+    await callback.message.edit_text(
+        "📨 <b>Рассылка ТОЛЬКО с активной подпиской</b>\n\n"
+        "Отправьте сообщение, которое хотите разослать.\n\n"
+        "Поддерживаются: текст, фото, видео, GIF, документы.\n\n"
+        "Для отмены нажмите /cancel"
+    )
+    await state.set_state(MailingStates.waiting_for_content)
+
+@dp.message(MailingStates.waiting_for_content)
+async def process_mailing_content(message: Message, state: FSMContext):
+    if message.from_user.id not in ADMIN_IDS:
+        await message.answer("❌ Только для админов!")
+        return
+    
+    data = await state.get_data()
+    mail_type = data.get("mail_type", "all")
+    
+    await message.answer("⏳ Начинаю рассылку...")
+    
+    # Получаем пользователей
+    if mail_type == "subscribers":
+        # Только с активной подпиской
+        subscriptions = get_all_active_subscriptions()
+        users = list(set([sub['user_id'] for sub in subscriptions]))
+    else:
+        # Все пользователи
+        users = get_all_users()
+    
+    if not users:
+        await message.answer("❌ Нет пользователей для рассылки!")
+        await state.clear()
+        return
+    
+    success = 0
+    failed = 0
+    
+    for user_id in users:
+        try:
+            if message.text:
+                await bot.send_message(user_id, message.text, parse_mode="HTML")
+            elif message.photo:
+                await bot.send_photo(user_id, message.photo[-1].file_id, caption=message.caption, parse_mode="HTML")
+            elif message.video:
+                await bot.send_video(user_id, message.video.file_id, caption=message.caption, parse_mode="HTML")
+            elif message.animation:
+                await bot.send_animation(user_id, message.animation.file_id, caption=message.caption, parse_mode="HTML")
+            elif message.document:
+                await bot.send_document(user_id, message.document.file_id, caption=message.caption, parse_mode="HTML")
+            elif message.audio:
+                await bot.send_audio(user_id, message.audio.file_id, caption=message.caption, parse_mode="HTML")
+            elif message.voice:
+                await bot.send_voice(user_id, message.voice.file_id, caption=message.caption, parse_mode="HTML")
+            else:
+                await message.answer("❌ Неподдерживаемый тип сообщения!")
+                await state.clear()
+                return
+            
+            success += 1
+            await asyncio.sleep(0.05)  # Небольшая задержка, чтобы не спамить
+            
+        except Exception as e:
+            failed += 1
+            logging.error(f"❌ Ошибка отправки пользователю {user_id}: {e}")
+    
+    await message.answer(
+        f"✅ <b>Рассылка завершена!</b>\n\n"
+        f"📤 Отправлено: {success}\n"
+        f"❌ Не доставлено: {failed}\n"
+        f"👥 Всего пользователей: {len(users)}\n"
+        f"📋 Тип: {'Все' if mail_type == 'all' else 'Только с подпиской'}"
+    )
+    await state.clear()
+
+
+@dp.message(Command("cancel"))
+async def cancel_mailing(message: Message, state: FSMContext):
+    """Отмена рассылки"""
+    current_state = await state.get_state()
+    if current_state == MailingStates.waiting_for_content.state:
+        await state.clear()
+        await message.answer("❌ Рассылка отменена.")
+    else:
+        await message.answer("Нет активных действий для отмены.")
+    
 
 @dp.callback_query(F.data == "admin_channels")
 async def admin_channels(callback: CallbackQuery, state: FSMContext):
