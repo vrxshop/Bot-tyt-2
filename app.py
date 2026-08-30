@@ -982,8 +982,8 @@ TARIFFS = {
     "8": {
         "name_ru": "🔮₽абыни + с/\ивы + krужки ✅",
         "name_en": "🔮Slaves + Leaks + Mugs ✅",
-        "price_rub": 330,
-        "price_stars": 330,
+        "price_rub": 399,
+        "price_stars": 399,
         "duration_ru": "1 месяц",
         "duration_en": "1 month",
         "duration_days": 30,
