@@ -3,7 +3,7 @@ import logging
 import asyncio
 import os
 import json
-import uuidА
+import uuid
 import sqlite3
 import threading
 import re
