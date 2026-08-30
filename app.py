@@ -3,7 +3,7 @@ import logging
 import asyncio
 import os
 import json
-import uuid
+import uuidА
 import sqlite3
 import threading
 import re
@@ -3036,10 +3036,7 @@ async def process_card_payment(callback: CallbackQuery, state: FSMContext):
 
 📱 +79899008622
 
-🏢 Оператор: МТС
-
-⚠️ <b>Переводить на мобильную связь!</b>
-❌ НЕ НА БАНК! Иначе средства будут потеряны.
+⚠️ <b>Переводить на Валдберриз банк (ВБ)!</b>
 
 ❗️ Проверка ботом может занимать какое-то время (ручная проверка)
 ❕ Если вы оплатили, нажмите обязательно кнопку «Я оплатил»
