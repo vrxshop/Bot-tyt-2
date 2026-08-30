@@ -1320,11 +1320,11 @@ def get_payment_method_keyboard(tariff_key, discount_percent=0, lang="ru"):
     tariff = TARIFFS[tariff_key]
     
     if discount_percent > 0:
-        btn_card = f"📱 Моб. связь 🏷️(-{discount_percent}%)"
+        btn_card = "💳 СБП перевод 🏷️(-{discount_percent}%)"
         btn_stars = LANG[lang]["btn_pay_stars_disc"].format(disc=discount_percent)
         btn_crypto = LANG[lang]["btn_pay_crypto_disc"].format(disc=discount_percent)
     else:
-        btn_card = "📱 Перевод на моб. связь"
+        btn_card = "💳 СБП перевод"
         btn_stars = LANG[lang]["btn_pay_stars"]
         btn_crypto = LANG[lang]["btn_pay_crypto"]
 
@@ -3027,7 +3027,7 @@ async def process_card_payment(callback: CallbackQuery, state: FSMContext):
     final_price = int(tariff['price_rub'] * (1 - discount / 100))
     
     text = f"""
-💳 <b>Способ оплаты: Перевод на мобильную связь</b>
+💳 <b>Способ оплаты: Перевод на вайлдберриз банк</b>
 
 💰 К оплате: {final_price}.00 RUB
 🆔 Ваш ID: {user_id}
