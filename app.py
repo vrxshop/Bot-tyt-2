@@ -196,28 +196,73 @@ def expire_subscription(user_id: int, tariff_key: str):
         logging.error(f"Ошибка отметки подписки: {e}")
         return False
 
-def get_tariff_channel(tariff_key: str):
+# ==================================================
+# ФУНКЦИИ РАБОТЫ С МНОЖЕСТВЕННЫМИ КАНАЛАМИ (Supabase)
+# ==================================================
+
+def get_tariff_channels(tariff_key: str):
+    """Получает все каналы для тарифа"""
     try:
-        response = supabase.table('tariff_channels')\
+        response = supabase.table('tariff_channels_multi')\
             .select('*')\
             .eq('tariff_key', tariff_key)\
             .execute()
-        return response.data[0] if response.data else None
+        return response.data
     except Exception as e:
-        logging.error(f"Ошибка получения канала: {e}")
-        return None
+        logging.error(f"❌ Ошибка получения каналов для {tariff_key}: {e}")
+        return []
 
-def set_tariff_channel(tariff_key: str, channel_id: str, invite_link: str):
+
+def add_tariff_channel(tariff_key: str, channel_id: str, invite_link: str):
+    """Добавляет канал для тарифа"""
     try:
-        supabase.table('tariff_channels').upsert({
+        supabase.table('tariff_channels_multi').insert({
             'tariff_key': tariff_key,
             'channel_id': channel_id,
             'invite_link': invite_link
         }).execute()
         return True
     except Exception as e:
-        logging.error(f"Ошибка сохранения канала: {e}")
+        logging.error(f"❌ Ошибка добавления канала: {e}")
         return False
+
+
+def remove_tariff_channel(channel_id: str):
+    """Удаляет канал из тарифа"""
+    try:
+        supabase.table('tariff_channels_multi')\
+            .delete()\
+            .eq('channel_id', channel_id)\
+            .execute()
+        return True
+    except Exception as e:
+        logging.error(f"❌ Ошибка удаления канала: {e}")
+        return False
+
+
+def get_tariff_by_channel(channel_id: str):
+    """Находит tariff_key по channel_id"""
+    try:
+        response = supabase.table('tariff_channels_multi')\
+            .select('tariff_key')\
+            .eq('channel_id', str(channel_id))\
+            .execute()
+        return response.data[0]['tariff_key'] if response.data else None
+    except Exception as e:
+        logging.error(f"❌ Ошибка поиска тарифа по каналу: {e}")
+        return None
+
+
+def get_all_channels_for_tariffs():
+    """Получает все каналы для всех тарифов"""
+    try:
+        response = supabase.table('tariff_channels_multi')\
+            .select('*')\
+            .execute()
+        return response.data
+    except Exception as e:
+        logging.error(f"❌ Ошибка получения всех каналов: {e}")
+        return []
 
 def create_subscription_key(tariff_key: str, duration_days: int = None, created_by: int = None) -> str:
     try:
@@ -1466,24 +1511,54 @@ async def handle_join_request(update: ChatJoinRequest):
     logging.info(f"📥 Заявка от {user_id} в канал {chat_id}")
     
     try:
-        response = supabase.table('tariff_channels')\
-            .select('tariff_key')\
-            .eq('channel_id', str(chat_id))\
-            .execute()
+        # 1. Находим tariff_key по channel_id
+        tariff_key = get_tariff_by_channel(str(chat_id))
         
-        if response.data:
-            tariff_key = response.data[0]['tariff_key']
-            sub = get_subscription_by_tariff(user_id, tariff_key)
-            if sub:
-                await update.approve()
-                logging.info(f"✅ Заявка от {user_id} одобрена для {tariff_key}")
-                return
-            else:
-                logging.info(f"❌ Отказ для {user_id} - нет подписки на {tariff_key}")
-        else:
+        if not tariff_key:
+            # Проверяем также в старых CHANNEL_IDS для обратной совместимости
+            for key, channel in CHANNEL_IDS.items():
+                if str(channel) == str(chat_id):
+                    tariff_key = key
+                    break
+        
+        if not tariff_key:
             logging.info(f"⚠️ Канал {chat_id} не найден в настройках")
+            return
+        
+        # 2. Проверяем подписку пользователя
+        sub = get_subscription_by_tariff(user_id, tariff_key)
+        
+        # 3. Проверяем также подписку на "Все включено" (тариф 9 в вашем случае)
+        all_inclusive_sub = get_subscription_by_tariff(user_id, "9")
+        
+        if sub or all_inclusive_sub:
+            await update.approve()
+            logging.info(f"✅ Заявка от {user_id} ОДОБРЕНА для канала {chat_id} (тариф: {tariff_key})")
+            
+            # Отправляем приветствие
+            try:
+                tariff_name = get_tariff_name(tariff_key, "ru")
+                await bot.send_message(
+                    user_id,
+                    f"✅ Добро пожаловать! Ваша подписка на «{tariff_name}» активна."
+                )
+            except:
+                pass
+        else:
+            logging.info(f"❌ Отказ для {user_id} - нет подписки на {tariff_key}")
+            
+            # Уведомляем пользователя
+            try:
+                await bot.send_message(
+                    user_id,
+                    f"❌ У вас нет активной подписки на этот канал.\n"
+                    f"Оформите подписку через бота, чтобы получить доступ."
+                )
+            except:
+                pass
+            
     except Exception as e:
-        logging.error(f"Ошибка обработки заявки: {e}")
+        logging.error(f"❌ Ошибка обработки заявки: {e}")
 
 # ==================================================
 # ХЭНДЛЕРЫ
@@ -1822,22 +1897,23 @@ async def admin_channels(callback: CallbackQuery, state: FSMContext):
     
     await callback.answer()
     
-    text = "📋 <b>Управление ссылками каналов</b>\n\n"
-    text += "Для каждого тарифа можно настроить ссылку на канал с заявками.\n\n"
+    text = "📋 <b>Управление каналами тарифов</b>\n\n"
+    text += "Для каждого тарифа можно настроить несколько каналов.\n\n"
     
     for key, tariff in TARIFFS.items():
-        channel = get_tariff_channel(key)
-        if channel and channel.get('invite_link'):
-            status = "✅ настроен"
-            link_preview = channel['invite_link'][:30] + "..." if len(channel['invite_link']) > 30 else channel['invite_link']
-            text += f"• {tariff['name_ru']}: {status}\n  🔗 {link_preview}\n\n"
+        channels = get_tariff_channels(key)
+        if channels:
+            text += f"• {tariff['name_ru']}: ✅ {len(channels)} канал(ов)\n"
+            for ch in channels:
+                text += f"  - 🆔 {ch['channel_id']}\n"
+            text += "\n"
         else:
             text += f"• {tariff['name_ru']}: ❌ не настроен\n\n"
     
     await callback.message.edit_text(
         text,
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="✏️ Настроить тариф", callback_data="admin_edit_channel")],
+            [InlineKeyboardButton(text="✏️ Настроить тарифы", callback_data="admin_edit_channel")],
             [InlineKeyboardButton(text="◀️ Назад", callback_data="back_to_admin")]
         ])
     )
@@ -1852,18 +1928,178 @@ async def admin_edit_channel(callback: CallbackQuery, state: FSMContext):
     
     buttons = []
     for key, tariff in TARIFFS.items():
-        channel = get_tariff_channel(key)
-        status = "✅" if channel and channel.get('invite_link') else "❌"
+        channels = get_tariff_channels(key)
+        count = len(channels)
+        status = f"✅ {count} канал(ов)" if count > 0 else "❌"
         buttons.append([InlineKeyboardButton(
             text=f"{status} {tariff['name_ru']}", 
-            callback_data=f"admin_channel_{key}"
+            callback_data=f"admin_multi_channel_{key}"
         )])
     buttons.append([InlineKeyboardButton(text="◀️ Назад", callback_data="admin_channels")])
     
     await callback.message.edit_text(
-        "📋 <b>Выберите тариф для настройки:</b>",
+        "📋 <b>Управление каналами тарифов</b>\n\n"
+        "Выберите тариф для управления каналами:",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons)
     )
+
+
+@dp.callback_query(F.data.startswith("admin_multi_channel_"))
+async def admin_multi_channel_menu(callback: CallbackQuery, state: FSMContext):
+    if callback.from_user.id not in ADMIN_IDS:
+        await callback.answer("❌ Только для админов!", show_alert=True)
+        return
+    
+    await callback.answer()
+    
+    tariff_key = callback.data.replace("admin_multi_channel_", "")
+    tariff = TARIFFS.get(tariff_key)
+    channels = get_tariff_channels(tariff_key)
+    
+    await state.update_data(admin_tariff_key=tariff_key)
+    
+    text = f"📋 <b>Управление каналами: {tariff['name_ru']}</b>\n\n"
+    
+    if channels:
+        for i, ch in enumerate(channels, 1):
+            text += f"{i}. 🆔 {ch['channel_id']}\n"
+            text += f"   🔗 {ch['invite_link'][:50]}...\n\n"
+    else:
+        text += "❌ Нет добавленных каналов\n\n"
+    
+    text += "Выберите действие:"
+    
+    buttons = [
+        [InlineKeyboardButton(text="➕ Добавить канал", callback_data=f"admin_add_channel_{tariff_key}")],
+    ]
+    
+    if channels:
+        buttons.append([InlineKeyboardButton(text="🗑️ Удалить канал", callback_data=f"admin_remove_channel_{tariff_key}")])
+    
+    buttons.append([InlineKeyboardButton(text="◀️ Назад", callback_data="admin_edit_channel")])
+    
+    await callback.message.edit_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons)
+    )
+
+
+@dp.callback_query(F.data.startswith("admin_add_channel_"))
+async def admin_add_channel(callback: CallbackQuery, state: FSMContext):
+    if callback.from_user.id not in ADMIN_IDS:
+        await callback.answer("❌ Только для админов!", show_alert=True)
+        return
+    
+    await callback.answer()
+    
+    tariff_key = callback.data.replace("admin_add_channel_", "")
+    await state.update_data(admin_tariff_key=tariff_key)
+    
+    await callback.message.edit_text(
+        f"📋 <b>Добавление канала для тарифа</b>\n\n"
+        f"Введите ID канала (например -1001234567890):"
+    )
+    await state.set_state(AdminStates.waiting_for_channel_id)
+
+
+@dp.message(AdminStates.waiting_for_channel_id)
+async def admin_set_channel_id(message: Message, state: FSMContext):
+    if message.from_user.id not in ADMIN_IDS:
+        await message.answer("❌ Только для админов!")
+        return
+    
+    data = await state.get_data()
+    tariff_key = data.get("admin_tariff_key")
+    channel_id = message.text.strip()
+    
+    await state.update_data(admin_channel_id=channel_id)
+    
+    await message.answer(
+        "📋 Теперь введите ссылку-приглашение на канал:\n\n"
+        "Пример: https://t.me/joinchat/XXXXX"
+    )
+    await state.set_state(AdminStates.waiting_for_invite_link)
+
+
+@dp.message(AdminStates.waiting_for_invite_link)
+async def admin_set_invite_link(message: Message, state: FSMContext):
+    if message.from_user.id not in ADMIN_IDS:
+        await message.answer("❌ Только для админов!")
+        return
+    
+    data = await state.get_data()
+    tariff_key = data.get("admin_tariff_key")
+    channel_id = data.get("admin_channel_id")
+    invite_link = message.text.strip()
+    
+    # Добавляем канал в новую таблицу
+    add_tariff_channel(tariff_key, channel_id, invite_link)
+    
+    tariff = TARIFFS[tariff_key]
+    channels = get_tariff_channels(tariff_key)
+    
+    await message.answer(
+        f"✅ Канал добавлен для тарифа <b>{tariff['name_ru']}</b>!\n\n"
+        f"🆔 ID канала: <code>{channel_id}</code>\n"
+        f"🔗 Ссылка: {invite_link}\n"
+        f"📊 Теперь у тарифа {len(channels)} канал(ов)."
+    )
+    await state.clear()
+
+
+@dp.callback_query(F.data.startswith("admin_remove_channel_"))
+async def admin_remove_channel(callback: CallbackQuery, state: FSMContext):
+    if callback.from_user.id not in ADMIN_IDS:
+        await callback.answer("❌ Только для админов!", show_alert=True)
+        return
+    
+    await callback.answer()
+    
+    tariff_key = callback.data.replace("admin_remove_channel_", "")
+    channels = get_tariff_channels(tariff_key)
+    
+    buttons = []
+    for ch in channels:
+        buttons.append([InlineKeyboardButton(
+            text=f"🗑️ {ch['channel_id']}",
+            callback_data=f"admin_del_channel_{ch['id']}"
+        )])
+    buttons.append([InlineKeyboardButton(
+        text="◀️ Назад",
+        callback_data=f"admin_multi_channel_{tariff_key}"
+    )])
+    
+    await callback.message.edit_text(
+        "🗑️ <b>Выберите канал для удаления:</b>",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons)
+    )
+
+
+@dp.callback_query(F.data.startswith("admin_del_channel_"))
+async def admin_del_channel(callback: CallbackQuery):
+    if callback.from_user.id not in ADMIN_IDS:
+        await callback.answer("❌ Только для админов!", show_alert=True)
+        return
+    
+    await callback.answer()
+    
+    channel_id = callback.data.replace("admin_del_channel_", "")
+    
+    # Получаем tariff_key перед удалением
+    tariff_key = get_tariff_by_channel(channel_id)
+    
+    # Удаляем канал
+    remove_tariff_channel(channel_id)
+    
+    if tariff_key:
+        await callback.message.edit_text(
+            f"✅ Канал <code>{channel_id}</code> удален из тарифа.",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="◀️ Назад", callback_data=f"admin_multi_channel_{tariff_key}")]
+            ])
+        )
+    else:
+        await callback.message.edit_text("✅ Канал удален.")
 
 @dp.callback_query(F.data.startswith("admin_channel_"))
 async def admin_channel_set(callback: CallbackQuery, state: FSMContext):
@@ -3616,17 +3852,18 @@ async def access_subscription(callback: CallbackQuery, state: FSMContext):
     lang = await get_lang(state)
     user_id = callback.from_user.id
     
+    # Проверяем подписку
     sub = get_subscription_by_tariff(user_id, tariff_key)
     if not sub:
         await callback.message.edit_text("❌ У вас нет активной подписки на этот тариф.")
         return
     
-    tariff_channel = get_tariff_channel(tariff_key)
+    # Получаем все каналы для этого тарифа
+    channels = get_tariff_channels(tariff_key)
     
-    if not tariff_channel or tariff_channel.get('channel_id') == "0" or tariff_channel.get('invite_link') == "0":
-        text = "❌ <b>Канал временно не доступен либо забанен.</b>\n\n"
-        text += "Для уточнения сроков восстановления, напишите админу @kasgd\n\n"
-        text += "❕ Важно: когда админ починит доступ, у вас он автоматически появится."
+    if not channels:
+        text = "❌ <b>Каналы временно не доступны.</b>\n\n"
+        text += "Для уточнения сроков восстановления, напишите админу @kasgd"
         
         await callback.message.edit_text(
             text,
@@ -3638,20 +3875,31 @@ async def access_subscription(callback: CallbackQuery, state: FSMContext):
         )
         return
     
-    if tariff_channel and tariff_channel.get('invite_link'):
-        text = "✅ <b>Вход открыт.</b>\n\nНажмите на кнопку ВСТУПИТЬ, затем Подать заявку и снова ВСТУПИТЬ:"
-        invite_link = tariff_channel['invite_link']
-        
-        await callback.message.edit_text(
-            text,
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="🔗 ВСТУПИТЬ", url=invite_link)],
-                [InlineKeyboardButton(text="💳 КУПИТЬ ДРУГОЙ ДОСТУП", callback_data="back_to_prices")],
-                [InlineKeyboardButton(text="👈 НАЗАД", callback_data="back_to_subs")]
-            ])
-        )
-    else:
-        await callback.message.edit_text("❌ Для этого тарифа еще не настроена ссылка на канал. Обратитесь к администратору.")
+    # Создаем клавиатуру со всеми каналами
+    buttons = []
+    for channel in channels:
+        invite_link = channel.get('invite_link')
+        if invite_link and invite_link != "0":
+            buttons.append([InlineKeyboardButton(
+                text=f"🔗 ВСТУПИТЬ В КАНАЛ {len(buttons) + 1}", 
+                url=invite_link
+            )])
+    
+    buttons.append([InlineKeyboardButton(
+        text="💳 КУПИТЬ ДРУГОЙ ДОСТУП", 
+        callback_data="back_to_prices"
+    )])
+    buttons.append([InlineKeyboardButton(
+        text="👈 НАЗАД", 
+        callback_data="back_to_subs"
+    )])
+    
+    text = "✅ <b>Вход открыт.</b>\n\nНажмите на кнопки ВСТУПИТЬ, затем Подать заявку:"
+    
+    await callback.message.edit_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons)
+    )
 
 # ==================================================
 # АДМИН: ЗАЯВКИ НА ОПЛАТУ
@@ -3893,77 +4141,96 @@ async def back_to_admin(callback: CallbackQuery):
 # ==================================================
 
 async def check_expired_subscriptions():
+    """Проверяет истекшие подписки и кикает пользователей из всех каналов"""
     while True:
         try:
             logging.info("🔄 Проверка истекших подписок...")
             
+            # 1. Получаем все истекшие подписки
             expired = get_expired_subscriptions()
+            
             for sub in expired:
                 user_id = sub['user_id']
                 tariff_key = sub['tariff_key']
                 tariff_name = get_tariff_name(tariff_key, "ru")
                 
-                channel = get_tariff_channel(tariff_key)
-                if channel and channel.get('channel_id'):
-                    try:
-                        chat_id = int(channel['channel_id'])
-                        await bot.ban_chat_member(chat_id, user_id)
-                        await bot.unban_chat_member(chat_id, user_id)
-                        logging.info(f"✅ Кикнут пользователь {user_id} из канала {chat_id}")
-                    except Exception as e:
-                        logging.error(f"Ошибка кика: {e}")
+                logging.info(f"⏰ Истекла подписка у {user_id} на тариф {tariff_key}")
                 
+                # 2. Получаем ВСЕ каналы для этого тарифа
+                channels = get_tariff_channels(tariff_key)
+                
+                # 3. Кикаем пользователя из всех каналов
+                if channels:
+                    for channel in channels:
+                        try:
+                            chat_id = int(channel['channel_id'])
+                            await bot.ban_chat_member(chat_id, user_id)
+                            await bot.unban_chat_member(chat_id, user_id)
+                            logging.info(f"✅ Кикнут пользователь {user_id} из канала {chat_id} (тариф: {tariff_key})")
+                        except Exception as e:
+                            logging.error(f"❌ Ошибка кика из канала {channel['channel_id']}: {e}")
+                else:
+                    # Если каналы не настроены, проверяем CHANNEL_IDS (для обратной совместимости)
+                    if tariff_key in CHANNEL_IDS:
+                        try:
+                            chat_id = int(CHANNEL_IDS[tariff_key])
+                            await bot.ban_chat_member(chat_id, user_id)
+                            await bot.unban_chat_member(chat_id, user_id)
+                            logging.info(f"✅ Кикнут пользователь {user_id} из канала {chat_id} (CHANNEL_IDS)")
+                        except Exception as e:
+                            logging.error(f"❌ Ошибка кика из канала {CHANNEL_IDS[tariff_key]}: {e}")
+                
+                # 4. Отмечаем подписку как истекшую в БД
                 expire_subscription(user_id, tariff_key)
                 
+                # 5. Уведомляем пользователя об истечении подписки
                 try:
                     text = LANG["ru"]["subscription_expired"].format(tariff_name=tariff_name)
                     await bot.send_message(user_id, text)
+                    logging.info(f"📨 Отправлено уведомление пользователю {user_id} об истечении подписки")
                 except Exception as e:
-                    logging.error(f"Ошибка отправки уведомления: {e}")
+                    logging.error(f"❌ Ошибка отправки уведомления пользователю {user_id}: {e}")
             
+            # 6. Проверяем подписки, которые истекают скоро (за 3 дня)
             expiring_soon = get_expiring_soon_subscriptions(3)
+            
             for sub in expiring_soon:
                 user_id = sub['user_id']
                 tariff_key = sub['tariff_key']
                 tariff_name = get_tariff_name(tariff_key, "ru")
                 
+                # Проверяем, сколько дней осталось
+                expires_at = sub.get('expires_at')
+                if expires_at:
+                    try:
+                        expires_date = datetime.fromisoformat(expires_at)
+                        days_left = (expires_date - datetime.now()).days
+                        if days_left <= 0:
+                            continue
+                    except:
+                        days_left = 3
+                else:
+                    continue
+                
+                # Отправляем напоминание
                 try:
                     text = LANG["ru"]["subscription_expiring_soon"].format(
                         tariff_name=tariff_name,
-                        days=3
+                        days=days_left
                     )
                     await bot.send_message(user_id, text)
+                    logging.info(f"📨 Отправлено напоминание пользователю {user_id} о скором истечении подписки ({days_left} дней)")
                 except Exception as e:
-                    logging.error(f"Ошибка отправки напоминания: {e}")
+                    logging.error(f"❌ Ошибка отправки напоминания пользователю {user_id}: {e}")
             
-            logging.info("✅ Проверка завершена")
+            logging.info("✅ Проверка истекших подписок завершена")
             
         except Exception as e:
-            logging.error(f"Ошибка в check_expired_subscriptions: {e}")
+            logging.error(f"❌ Критическая ошибка в check_expired_subscriptions: {e}")
+            logging.exception(e)
         
+        # Ждем 12 часов перед следующей проверкой
         await asyncio.sleep(43200)
-
-async def main():
-    logging.basicConfig(level=logging.INFO)
-    init_db()
-    
-    if not BOT_TOKEN:
-        logging.error("❌ BOT_TOKEN не задан в переменных окружения!")
-        return
-    
-    print("=" * 60)
-    print("🚀 ОСНОВНОЙ БОТ ЗАПУЩЕН!")
-    print("📦 База данных: Supabase REST API + SQLite")
-    print(f"🪙 CRYPTO_TOKEN: {'✅' if CRYPTOBOT_API_KEY else '❌'}")
-    print(f"🗄️ SUPABASE: {'✅' if SUPABASE_URL and SUPABASE_KEY else '❌'}")
-    print("📞 Поддержка: @kasgd")
-    print("👥 Админы: " + ", ".join(str(admin) for admin in ADMIN_IDS))
-    print("=" * 60)
-    
-    asyncio.create_task(check_expired_subscriptions())
-    
-    await bot.delete_webhook(drop_pending_updates=True)
-    await dp.start_polling(bot)
 
 def run_flask():
     port = int(os.environ.get("PORT", 8080))
