@@ -597,47 +597,6 @@ def add_payment_request(user_id: int, username: str, tariff_key: str, amount: in
         logging.error(f"❌ Ошибка добавления заявки в Supabase: {e}")
         return None
 
-
-def get_payment_request(request_id: int):
-    """Получает заявку из Supabase"""
-    try:
-        response = supabase.table('payment_requests')\
-            .select('*')\
-            .eq('id', request_id)\
-            .execute()
-        
-        if response.data:
-            data = response.data[0]
-            return (
-                data['id'],
-                data['user_id'],
-                data['username'],
-                data['tariff_key'],
-                data['amount'],
-                data['message_text'],
-                data['media_file_id'],
-                data['media_type'],
-                data['status'],
-                data['created_at']
-            )
-        return None
-    except Exception as e:
-        logging.error(f"❌ Ошибка получения заявки из Supabase: {e}")
-        return None
-
-
-def update_payment_request_status(request_id: int, status: str):
-    """Обновляет статус заявки в Supabase"""
-    try:
-        supabase.table('payment_requests')\
-            .update({'status': status})\
-            .eq('id', request_id)\
-            .execute()
-        return True
-    except Exception as e:
-        logging.error(f"❌ Ошибка обновления статуса заявки: {e}")
-        return False
-
 def update_payment_request_status(request_id: int, status: str):
     """Обновляет статус заявки в Supabase"""
     try:
@@ -1147,7 +1106,7 @@ TARIFFS = {
         "duration_en": "1 month",
         "duration_days": 30,
         "category": "main",
-        "desc_ru": "✅Пополнение✅ K0нtент с шко/\ницами 7-14 lvl со всего снг\n\nВАЖНО! В этом тарифе контент с Deвочkами 7-16 lvl, а не в школе, если хотите в школе смотрите тариф \"в школе школьницы\" На один тариф ниже\n\n110 ГБ👩‍🎓"
+        "desc_ru": "✅Пополнение✅ K0нtент с шко/\ницами 7-14 lvl со всего снг\n\nВАЖНО! В этом тарифе контент с Deвочkами 7-16 lvl, а не в школе, если хотите в школе смотрите тариф \"в школе школьницы\" На один тариф ниже\n\n80 ГБ👩‍🎓"
     },
     "7": {
         "name_ru": "🏫в wk0ле шk0льницы👩‍🎓",
@@ -1180,7 +1139,7 @@ TARIFFS = {
         "duration_en": "1 month",
         "duration_days": 30,
         "category": "main",
-        "desc_ru": "И3но$илования д3вушек дома, в bанне, в ле$у, избиение спо₽тиками на снегу, асвальте, ₽аздевают, з@сtавляют ¢осать✅\n\n70 ГБ✅"
+        "desc_ru": "И3но$илования д3вушек дома, в bанне, в ле$у, избиение спо₽тиками на снегу, асвальте, ₽аздевают, з@сtавляют ¢осать✅\n\n50 ГБ✅"
     },
     "10": {
         "name_ru": "🔮Мл@денцы 0-5 lvl🔮",
@@ -1233,10 +1192,6 @@ dp = Dispatcher(storage=storage)
 
 class PromoStates(StatesGroup):
     waiting_for_promo = State()
-
-class MailingStates(StatesGroup):
-    waiting_for_mail_type = State()  # Тип рассылки (всем или с подпиской)
-    waiting_for_content = State()     # Ожидание контента для рассылки
 
 class MailingStates(StatesGroup):
     waiting_for_content = State()
