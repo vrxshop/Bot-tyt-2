@@ -655,46 +655,32 @@ def get_all_payment_requests(limit: int = 20):
         return []
 
 def get_payment_request(request_id: int):
-    """Получает заявку из Supabase по ID"""
+    """Получает заявку из Supabase"""
     try:
-        logging.info(f"🔍 ПОИСК ЗАЯВКИ #{request_id} в Supabase...")
-        
         response = supabase.table('payment_requests')\
             .select('*')\
             .eq('id', request_id)\
             .execute()
         
-        logging.info(f"📊 Результат поиска: {response.data}")
-        
         if response.data:
             data = response.data[0]
-            logging.info(f"✅ ЗАЯВКА #{request_id} НАЙДЕНА!")
-            logging.info(f"   👤 user_id: {data['user_id']}")
-            logging.info(f"   📋 username: {data['username']}")
-            logging.info(f"   🏷️ tariff_key: {data['tariff_key']}")
-            logging.info(f"   💰 amount: {data['amount']}")
-            logging.info(f"   📊 status: {data['status']}")
-            logging.info(f"   📅 created_at: {data['created_at']}")
-            
-            # Возвращаем в формате кортежа для совместимости
+            logging.info(f"✅ Заявка #{request_id} найдена: {data}")
+            # Возвращаем кортеж
             return (
-                data['id'],
-                data['user_id'],
-                data['username'],
-                data['tariff_key'],
-                data['amount'],
-                data['message_text'],
-                data['media_file_id'],
-                data['media_type'],
-                data['status'],
-                data['created_at']
+                data['id'],          # 0
+                data['user_id'],     # 1
+                data['username'],    # 2
+                data['tariff_key'],  # 3
+                data['amount'],      # 4
+                data['message_text'],# 5
+                data['media_file_id'],# 6
+                data['media_type'],  # 7
+                data['status'],      # 8
+                data['created_at']   # 9
             )
-        else:
-            logging.warning(f"❌ ЗАЯВКА #{request_id} НЕ НАЙДЕНА в Supabase!")
-            return None
-            
+        return None
     except Exception as e:
-        logging.error(f"❌ Ошибка получения заявки #{request_id} из Supabase: {e}")
+        logging.error(f"❌ Ошибка получения заявки: {e}")
         return None
 
 def update_payment_request_status(request_id: int, status: str):
@@ -4479,85 +4465,154 @@ async def confirm_payment(callback: CallbackQuery):
     
     request_id = int(callback.data.replace("confirm_payment_", ""))
     
-    logging.info(f"🔍 ПОИСК ЗАЯВКИ #{request_id}")
+    logging.info(f"🔍 Подтверждение заявки #{request_id}")
     
-    # ===== ПРОВЕРКА 1: Ищем в Supabase =====
-    try:
-        response = supabase.table('payment_requests')\
-            .select('*')\
-            .eq('id', request_id)\
-            .execute()
+    # Получаем заявку из Supabase
+    req = get_payment_request(request_id)
+    
+    if not req:
+        await callback.answer("❌ Заявка не найдена", show_alert=True)
+        return
+    
+    user_id = req[1]
+    tariff_key = req[3]
+    amount = req[4]
+    username = req[2] or "без username"
+    
+    logging.info(f"📋 Заявка #{request_id}: user={user_id}, tariff={tariff_key}, amount={amount}")
+    
+    # ===== 1. НАЧИСЛЯЕМ РЕФЕРАЛЬНЫЕ =====
+    user_response = supabase.table('users')\
+        .select('ref_by')\
+        .eq('user_id', user_id)\
+        .execute()
+    
+    if user_response.data and user_response.data[0].get('ref_by'):
+        referrer_id = user_response.data[0]['ref_by']
+        ref_amount = amount * 0.6
         
-        logging.info(f"📊 Supabase ответ: {response.data}")
+        if tariff_key != "test677":
+            add_ref_earning(user_id, referrer_id, tariff_key, ref_amount)
+            
+            try:
+                await bot.send_message(
+                    referrer_id,
+                    f"💰 Вам начислено {ref_amount:.2f} ₽ за покупку вашего реферала!\n"
+                    f"📊 Ваш баланс: {get_ref_balance(referrer_id):.2f} ₽"
+                )
+            except Exception as e:
+                logging.error(f"Ошибка уведомления реферера: {e}")
+    
+    # ===== 2. ВЫДАЕМ ПОДПИСКУ =====
+    tariff = TARIFFS.get(tariff_key)
+    duration_days = tariff.get('duration_days') if tariff else None
+    
+    if duration_days is not None:
+        expires_at = datetime.now() + timedelta(days=duration_days)
+        add_subscription(user_id, tariff_key, duration_days)
+        expires_text = format_date(expires_at)
+    else:
+        expires_at = None
+        add_subscription(user_id, tariff_key, None)
+        expires_text = "Бессрочно"
+    
+    add_paid_tariff(user_id, tariff_key)
+    tariff_name = tariff['name_ru'] if tariff else tariff_key
+    
+    # ===== 3. СОЗДАЕМ КЛЮЧ =====
+    key = create_subscription_key(tariff_key, duration_days, callback.from_user.id)
+    
+    # ===== 4. ОТПРАВЛЯЕМ УВЕДОМЛЕНИЕ ПОЛЬЗОВАТЕЛЮ =====
+    if key:
+        bot_info = await bot.get_me()
+        link = f"https://t.me/{bot_info.username}?start={key}"
         
-        if response.data:
-            data = response.data[0]
-            logging.info(f"✅ ЗАЯВКА #{request_id} НАЙДЕНА в Supabase!")
-            
-            # Обрабатываем заявку
-            user_id = data['user_id']
-            tariff_key = data['tariff_key']
-            amount = data['amount']
-            
-            # ... остальной код подтверждения
-            # (вставьте сюда код подтверждения из вашего обработчика)
-            
-            # Обновляем статус
-            supabase.table('payment_requests')\
-                .update({'status': 'confirmed'})\
-                .eq('id', request_id)\
-                .execute()
-            
-            await callback.message.delete()
-            await callback.message.answer(f"✅ Оплата по заявке #{request_id} подтверждена!")
-            await callback.answer()
-            return
-        else:
-            logging.error(f"❌ ЗАЯВКА #{request_id} НЕ НАЙДЕНА в Supabase!")
-            
-    except Exception as e:
-        logging.error(f"❌ Ошибка запроса к Supabase: {e}")
-    
-    # ===== ПРОВЕРКА 2: Ищем в SQLite =====
-    try:
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        cursor.execute('SELECT * FROM payment_requests WHERE id = ?', (request_id,))
-        result = cursor.fetchone()
-        conn.close()
+        text = f"""✅ <b>Оплата подтверждена!</b>
+
+📋 Тариф: {tariff_name}
+📅 Действует до: {expires_text}
+
+🔑 <b>Ваш ключ для активации тарифа:</b>
+<code>{key}</code>
+
+🔗 <b>Ссылка для активации:</b>
+{link}
+
+⚠️ <b>Ключ одноразовый!</b>
+📌 Ваша подписка появится в разделе <b>"Мои подписки"</b> после активации ключа.
+
+💬 По всем вопросам: @kasgd"""
         
-        if result:
-            logging.info(f"✅ ЗАЯВКА #{request_id} НАЙДЕНА в SQLite!")
-            # Если нашли в SQLite - переносим в Supabase
-            # ... код переноса
-        else:
-            logging.error(f"❌ ЗАЯВКА #{request_id} НЕ НАЙДЕНА в SQLite!")
-    except Exception as e:
-        logging.error(f"❌ Ошибка запроса к SQLite: {e}")
+        # Получаем каналы для тарифа
+        channels = get_tariff_channels(tariff_key)
+        
+        # Создаем клавиатуру с кнопками
+        buttons = []
+        
+        # Добавляем кнопки вступления в каналы
+        if channels:
+            for i, channel in enumerate(channels, 1):
+                invite_link = channel.get('invite_link')
+                if invite_link and invite_link != "0":
+                    buttons.append([InlineKeyboardButton(
+                        text=f"🔗 ВСТУПИТЬ В КАНАЛ {i}",
+                        url=invite_link
+                    )])
+        
+        # Добавляем кнопку "Мои подписки"
+        buttons.append([InlineKeyboardButton(
+            text="📋 Мои подписки",
+            callback_data="back_to_subs"
+        )])
+        
+        # Отправляем сообщение пользователю
+        try:
+            await bot.send_message(
+                user_id,
+                text,
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
+                disable_web_page_preview=True
+            )
+            logging.info(f"✅ Уведомление отправлено пользователю {user_id}")
+        except Exception as e:
+            logging.error(f"❌ Ошибка отправки уведомления пользователю {user_id}: {e}")
+    else:
+        # Если ключ не создался
+        try:
+            await bot.send_message(
+                user_id,
+                f"✅ <b>Оплата подтверждена!</b>\n\n"
+                f"📋 Тариф: {tariff_name}\n"
+                f"📅 Действует до: {expires_text}\n\n"
+                f"❌ Ошибка создания ключа. Напишите администратору @kasgd"
+            )
+        except Exception as e:
+            logging.error(f"❌ Ошибка отправки уведомления: {e}")
     
-    # ===== ПРОВЕРКА 3: Показываем все заявки =====
-    try:
-        # Все заявки в Supabase
-        all_supabase = supabase.table('payment_requests')\
-            .select('id, user_id, username, status')\
-            .limit(10)\
-            .execute()
-        logging.info(f"📋 Последние заявки в Supabase: {all_supabase.data}")
-    except Exception as e:
-        logging.error(f"❌ Ошибка получения списка из Supabase: {e}")
+    # ===== 5. УВЕДОМЛЯЕМ АДМИНОВ =====
+    for admin_id in ADMIN_IDS:
+        try:
+            admin_text = f"""✅ <b>ЗАЯВКА #{request_id} ПОДТВЕРЖДЕНА!</b>
+
+👤 Пользователь: <a href='tg://user?id={user_id}'>@{username}</a>
+🆔 ID: <code>{user_id}</code>
+📋 Тариф: {tariff_name}
+💰 Сумма: {amount} RUB
+📅 Действует до: {expires_text}
+🔑 Ключ: <code>{key}</code>
+
+✅ Пользователь уведомлен!"""
+            
+            await bot.send_message(admin_id, admin_text)
+        except Exception as e:
+            logging.error(f"Ошибка уведомления админа {admin_id}: {e}")
     
-    try:
-        # Все заявки в SQLite
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        cursor.execute('SELECT id, user_id, username, status FROM payment_requests ORDER BY id DESC LIMIT 10')
-        results = cursor.fetchall()
-        conn.close()
-        logging.info(f"📋 Последние заявки в SQLite: {results}")
-    except Exception as e:
-        logging.error(f"❌ Ошибка получения списка из SQLite: {e}")
+    # ===== 6. ОБНОВЛЯЕМ СТАТУС ЗАЯВКИ =====
+    update_payment_request_status(request_id, 'confirmed')
     
-    await callback.answer("❌ Заявка не найдена ни в Supabase, ни в SQLite!", show_alert=True)
+    await callback.message.delete()
+    await callback.message.answer(f"✅ Оплата по заявке #{request_id} подтверждена! Пользователь уведомлен.")
+    await callback.answer()
 
 @dp.callback_query(F.data == "back_to_admin")
 async def back_to_admin(callback: CallbackQuery):
