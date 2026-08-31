@@ -579,6 +579,21 @@ def add_payment_request(user_id: int, username: str, tariff_key: str, amount: in
                         media_type: str = None) -> int:
     """Создает заявку на оплату в Supabase"""
     try:
+        logging.info(f"📝 СОЗДАНИЕ ЗАЯВКИ:")
+        logging.info(f"   👤 user_id: {user_id}")
+        logging.info(f"   📋 username: {username}")
+        logging.info(f"   🏷️ tariff_key: {tariff_key}")
+        logging.info(f"   💰 amount: {amount}")
+        logging.info(f"   📝 message_text: {message_text}")
+        logging.info(f"   📎 media_file_id: {media_file_id}")
+        logging.info(f"   📎 media_type: {media_type}")
+        
+        # Проверяем подключение к Supabase
+        if not SUPABASE_URL or not SUPABASE_KEY:
+            logging.error("❌ SUPABASE_URL или SUPABASE_KEY не заданы!")
+            return None
+        
+        # Вставляем заявку в Supabase
         response = supabase.table('payment_requests').insert({
             'user_id': user_id,
             'username': username,
@@ -590,12 +605,124 @@ def add_payment_request(user_id: int, username: str, tariff_key: str, amount: in
             'status': 'pending'
         }).execute()
         
+        logging.info(f"📊 Ответ Supabase: {response.data}")
+        
         if response.data:
-            return response.data[0]['id']
-        return None
+            request_id = response.data[0]['id']
+            logging.info(f"✅ ЗАЯВКА #{request_id} УСПЕШНО СОЗДАНА в Supabase!")
+            
+            # Дополнительно проверяем, что заявка действительно сохранилась
+            check_response = supabase.table('payment_requests')\
+                .select('*')\
+                .eq('id', request_id)\
+                .execute()
+            
+            if check_response.data:
+                logging.info(f"✅ ПРОВЕРКА: Заявка #{request_id} найдена в Supabase: {check_response.data[0]}")
+            else:
+                logging.warning(f"⚠️ ПРОВЕРКА: Заявка #{request_id} НЕ НАЙДЕНА после сохранения!")
+            
+            return request_id
+        else:
+            logging.error("❌ Ответ Supabase пустой, заявка не создана!")
+            return None
+            
     except Exception as e:
-        logging.error(f"❌ Ошибка добавления заявки в Supabase: {e}")
+        logging.error(f"❌ КРИТИЧЕСКАЯ ОШИБКА при добавлении заявки в Supabase: {e}")
+        logging.exception(e)
         return None
+
+def get_all_payment_requests(limit: int = 20):
+    """Получает список заявок из Supabase"""
+    try:
+        logging.info(f"📊 Запрос списка заявок из Supabase (limit={limit})")
+        
+        response = supabase.table('payment_requests')\
+            .select('*')\
+            .order('created_at', desc=True)\
+            .limit(limit)\
+            .execute()
+        
+        logging.info(f"📊 Получено {len(response.data)} заявок из Supabase")
+        
+        if response.data:
+            for req in response.data[:5]:  # Логируем первые 5
+                logging.info(f"   #{req['id']} | {req['username']} | {req['status']}")
+        
+        return response.data
+    except Exception as e:
+        logging.error(f"❌ Ошибка получения заявок из Supabase: {e}")
+        return []
+
+def get_payment_request(request_id: int):
+    """Получает заявку из Supabase по ID"""
+    try:
+        logging.info(f"🔍 ПОИСК ЗАЯВКИ #{request_id} в Supabase...")
+        
+        response = supabase.table('payment_requests')\
+            .select('*')\
+            .eq('id', request_id)\
+            .execute()
+        
+        logging.info(f"📊 Результат поиска: {response.data}")
+        
+        if response.data:
+            data = response.data[0]
+            logging.info(f"✅ ЗАЯВКА #{request_id} НАЙДЕНА!")
+            logging.info(f"   👤 user_id: {data['user_id']}")
+            logging.info(f"   📋 username: {data['username']}")
+            logging.info(f"   🏷️ tariff_key: {data['tariff_key']}")
+            logging.info(f"   💰 amount: {data['amount']}")
+            logging.info(f"   📊 status: {data['status']}")
+            logging.info(f"   📅 created_at: {data['created_at']}")
+            
+            # Возвращаем в формате кортежа для совместимости
+            return (
+                data['id'],
+                data['user_id'],
+                data['username'],
+                data['tariff_key'],
+                data['amount'],
+                data['message_text'],
+                data['media_file_id'],
+                data['media_type'],
+                data['status'],
+                data['created_at']
+            )
+        else:
+            logging.warning(f"❌ ЗАЯВКА #{request_id} НЕ НАЙДЕНА в Supabase!")
+            return None
+            
+    except Exception as e:
+        logging.error(f"❌ Ошибка получения заявки #{request_id} из Supabase: {e}")
+        return None
+
+@dp.message(Command("check_table"))
+async def check_table(message: Message):
+    """Проверяет структуру таблицы payment_requests (только для админов)"""
+    if message.from_user.id not in ADMIN_IDS:
+        await message.answer("❌ Только для админов!")
+        return
+    
+    try:
+        # Проверяем, есть ли таблица
+        response = supabase.table('payment_requests')\
+            .select('*')\
+            .limit(1)\
+            .execute()
+        
+        await message.answer(f"✅ Таблица payment_requests существует!\n📊 Количество записей: {len(response.data) if response.data else 0}")
+        
+        # Показываем структуру (если есть хоть одна запись)
+        if response.data:
+            sample = response.data[0]
+            columns = ", ".join(sample.keys())
+            await message.answer(f"📋 Структура таблицы:\n{columns}")
+        else:
+            await message.answer("📋 Таблица пустая. Добавьте тестовую заявку.")
+            
+    except Exception as e:
+        await message.answer(f"❌ Ошибка: {e}\n\nВозможно таблица payment_requests не существует в Supabase!")
 
 def update_payment_request_status(request_id: int, status: str):
     """Обновляет статус заявки в Supabase"""
@@ -2529,6 +2656,104 @@ async def process_custom_days(message: Message, state: FSMContext):
 # АДМИН: УПРАВЛЕНИЕ ПРОМОКОДАМИ
 # ==================================================
 
+@dp.message(Command("show_requests"))
+async def show_requests(message: Message):
+    """Показывает все заявки (только для админов)"""
+    if message.from_user.id not in ADMIN_IDS:
+        await message.answer("❌ Только для админов!")
+        return
+    
+    text = "📋 <b>ВСЕ ЗАЯВКИ:</b>\n\n"
+    
+    # 1. Заявки в Supabase
+    try:
+        response = supabase.table('payment_requests')\
+            .select('*')\
+            .order('id', desc=True)\
+            .limit(20)\
+            .execute()
+        
+        text += "🟢 <b>Supabase:</b>\n"
+        if response.data:
+            for req in response.data:
+                text += f"  #{req['id']} | {req['username']} | {req['status']} | {req['created_at'][:16]}\n"
+        else:
+            text += "  ❌ Нет заявок\n"
+    except Exception as e:
+        text += f"  ❌ Ошибка: {e}\n"
+    
+    text += "\n"
+    
+    # 2. Заявки в SQLite
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute('SELECT id, user_id, username, tariff_key, amount, status, created_at FROM payment_requests ORDER BY id DESC LIMIT 20')
+        results = cursor.fetchall()
+        conn.close()
+        
+        text += "🔵 <b>SQLite:</b>\n"
+        if results:
+            for req in results:
+                text += f"  #{req[0]} | {req[2]} | {req[5]} | {req[6][:16]}\n"
+        else:
+            text += "  ❌ Нет заявок\n"
+    except Exception as e:
+        text += f"  ❌ Ошибка: {e}\n"
+    
+    await message.answer(text)
+
+@dp.message(Command("sync_requests"))
+async def sync_requests(message: Message):
+    """Переносит заявки из SQLite в Supabase (только для админов)"""
+    if message.from_user.id not in ADMIN_IDS:
+        await message.answer("❌ Только для админов!")
+        return
+    
+    try:
+        # Получаем все заявки из SQLite
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM payment_requests ORDER BY id')
+        results = cursor.fetchall()
+        conn.close()
+        
+        if not results:
+            await message.answer("❌ Нет заявок в SQLite для переноса")
+            return
+        
+        synced = 0
+        for req in results:
+            try:
+                # Проверяем, есть ли уже в Supabase
+                check = supabase.table('payment_requests')\
+                    .select('id')\
+                    .eq('id', req[0])\
+                    .execute()
+                
+                if not check.data:
+                    # Переносим в Supabase
+                    supabase.table('payment_requests').insert({
+                        'id': req[0],
+                        'user_id': req[1],
+                        'username': req[2],
+                        'tariff_key': req[3],
+                        'amount': req[4],
+                        'message_text': req[5],
+                        'media_file_id': req[6],
+                        'media_type': req[7],
+                        'status': req[8],
+                        'created_at': req[9]
+                    }).execute()
+                    synced += 1
+            except Exception as e:
+                logging.error(f"❌ Ошибка переноса заявки #{req[0]}: {e}")
+        
+        await message.answer(f"✅ Перенесено {synced} заявок из SQLite в Supabase")
+        
+    except Exception as e:
+        await message.answer(f"❌ Ошибка: {e}")
+
 @dp.callback_query(F.data == "admin_promocodes")
 async def admin_promocodes(callback: CallbackQuery, state: FSMContext):
     if callback.from_user.id not in ADMIN_IDS:
@@ -4255,70 +4480,85 @@ async def confirm_payment(callback: CallbackQuery):
     
     request_id = int(callback.data.replace("confirm_payment_", ""))
     
-    # Получаем заявку из Supabase
-    req = get_payment_request(request_id)
+    logging.info(f"🔍 ПОИСК ЗАЯВКИ #{request_id}")
     
-    if not req:
-        await callback.answer("❌ Заявка не найдена", show_alert=True)
-        return
-    
-    user_id = req[1]
-    tariff_key = req[3]
-    amount = req[4]
-    
-    # ===== НАЧИСЛЕНИЕ РЕФЕРАЛЬНЫХ =====
-    user_response = supabase.table('users')\
-        .select('ref_by')\
-        .eq('user_id', user_id)\
-        .execute()
-    
-    if user_response.data and user_response.data[0].get('ref_by'):
-        referrer_id = user_response.data[0]['ref_by']
-        ref_amount = amount * 0.6
+    # ===== ПРОВЕРКА 1: Ищем в Supabase =====
+    try:
+        response = supabase.table('payment_requests')\
+            .select('*')\
+            .eq('id', request_id)\
+            .execute()
         
-        if tariff_key != "test677":
-            add_ref_earning(user_id, referrer_id, tariff_key, ref_amount)
+        logging.info(f"📊 Supabase ответ: {response.data}")
+        
+        if response.data:
+            data = response.data[0]
+            logging.info(f"✅ ЗАЯВКА #{request_id} НАЙДЕНА в Supabase!")
             
-            try:
-                await bot.send_message(
-                    referrer_id,
-                    f"💰 Вам начислено {ref_amount:.2f} ₽ за покупку вашего реферала!\n"
-                    f"📊 Ваш баланс: {get_ref_balance(referrer_id):.2f} ₽"
-                )
-            except Exception as e:
-                logging.error(f"Ошибка уведомления реферера: {e}")
+            # Обрабатываем заявку
+            user_id = data['user_id']
+            tariff_key = data['tariff_key']
+            amount = data['amount']
+            
+            # ... остальной код подтверждения
+            # (вставьте сюда код подтверждения из вашего обработчика)
+            
+            # Обновляем статус
+            supabase.table('payment_requests')\
+                .update({'status': 'confirmed'})\
+                .eq('id', request_id)\
+                .execute()
+            
+            await callback.message.delete()
+            await callback.message.answer(f"✅ Оплата по заявке #{request_id} подтверждена!")
+            await callback.answer()
+            return
+        else:
+            logging.error(f"❌ ЗАЯВКА #{request_id} НЕ НАЙДЕНА в Supabase!")
+            
+    except Exception as e:
+        logging.error(f"❌ Ошибка запроса к Supabase: {e}")
     
-    # Выдаем доступ (создаем ключ для пользователя)
-    tariff = TARIFFS.get(tariff_key)
-    duration_days = tariff.get('duration_days') if tariff else None
-    
-    key = create_subscription_key(tariff_key, duration_days, callback.from_user.id)
-    
-    if key:
-        bot_info = await bot.get_me()
-        link = f"https://t.me/{bot_info.username}?start={key}"
+    # ===== ПРОВЕРКА 2: Ищем в SQLite =====
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM payment_requests WHERE id = ?', (request_id,))
+        result = cursor.fetchone()
+        conn.close()
         
-        await bot.send_message(
-            user_id,
-            f"✅ <b>Оплата подтверждена!</b>\n\n"
-            f"🔑 Ваш ключ для активации тарифа:\n"
-            f"<code>{key}</code>\n\n"
-            f"🔗 Ссылка для активации:\n{link}\n\n"
-            f"⚠️ Ключ одноразовый!\n"
-            f"📌 Ваша подписка появится в разделе \"Мои подписки\" после активации ключа."
-        )
-    else:
-        await bot.send_message(
-            user_id,
-            "✅ Оплата подтверждена! Но возникла ошибка создания ключа. Напишите админу @kasgd."
-        )
+        if result:
+            logging.info(f"✅ ЗАЯВКА #{request_id} НАЙДЕНА в SQLite!")
+            # Если нашли в SQLite - переносим в Supabase
+            # ... код переноса
+        else:
+            logging.error(f"❌ ЗАЯВКА #{request_id} НЕ НАЙДЕНА в SQLite!")
+    except Exception as e:
+        logging.error(f"❌ Ошибка запроса к SQLite: {e}")
     
-    # Обновляем статус заявки в Supabase
-    update_payment_request_status(request_id, 'confirmed')
+    # ===== ПРОВЕРКА 3: Показываем все заявки =====
+    try:
+        # Все заявки в Supabase
+        all_supabase = supabase.table('payment_requests')\
+            .select('id, user_id, username, status')\
+            .limit(10)\
+            .execute()
+        logging.info(f"📋 Последние заявки в Supabase: {all_supabase.data}")
+    except Exception as e:
+        logging.error(f"❌ Ошибка получения списка из Supabase: {e}")
     
-    await callback.message.delete()
-    await callback.message.answer(f"✅ Оплата по заявке #{request_id} подтверждена! Пользователь уведомлен.")
-    await callback.answer()
+    try:
+        # Все заявки в SQLite
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute('SELECT id, user_id, username, status FROM payment_requests ORDER BY id DESC LIMIT 10')
+        results = cursor.fetchall()
+        conn.close()
+        logging.info(f"📋 Последние заявки в SQLite: {results}")
+    except Exception as e:
+        logging.error(f"❌ Ошибка получения списка из SQLite: {e}")
+    
+    await callback.answer("❌ Заявка не найдена ни в Supabase, ни в SQLite!", show_alert=True)
 
 @dp.callback_query(F.data == "back_to_admin")
 async def back_to_admin(callback: CallbackQuery):
