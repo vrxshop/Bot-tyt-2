@@ -41,7 +41,7 @@ def crypto_webhook():
     """Обработчик вебхука от CryptoBot"""
     try:
         data = request.get_json()
-        logging.info(f"Получен вебхук: {data}")
+        logging.info(f"📥 Получен вебхук: {data}")
         
         if data.get("update_type") == "invoice_paid":
             invoice_id = data.get("invoice_id", "")
@@ -51,13 +51,22 @@ def crypto_webhook():
                 user_id = invoice[1]
                 tariff_key = invoice[2]
                 amount = invoice[3]
+                
+                logging.info(f"💰 Оплачен инвойс {invoice_id} от {user_id} за {tariff_key}")
+                
+                # Отмечаем инвойс как оплаченный
                 mark_invoice_paid(invoice_id)
                 
+                # Запускаем выдачу доступа
                 asyncio.create_task(send_crypto_success(user_id, tariff_key, amount))
+                
+                return "OK", 200
+            else:
+                logging.warning(f"⚠️ Инвойс {invoice_id} не найден в БД")
         
         return "OK", 200
     except Exception as e:
-        logging.error(f"Ошибка вебхука: {e}")
+        logging.error(f"❌ Ошибка вебхука: {e}")
         return "Error", 500
 
 # ==================================================
@@ -565,10 +574,6 @@ def is_tariff_paid(user_id: int, tariff_key: str):
         logging.error(f"Ошибка проверки оплаты: {e}")
         return False
 
-# ==================================================
-# ФУНКЦИИ РАБОТЫ С ЗАЯВКАМИ (Supabase)
-# ==================================================
-
 def add_payment_request(user_id: int, username: str, tariff_key: str, amount: int, 
                         message_text: str = None, media_file_id: str = None, 
                         media_type: str = None) -> int:
@@ -602,7 +607,6 @@ def get_payment_request(request_id: int):
             .execute()
         
         if response.data:
-            # Преобразуем в кортеж для совместимости с существующим кодом
             data = response.data[0]
             return (
                 data['id'],
@@ -621,6 +625,18 @@ def get_payment_request(request_id: int):
         logging.error(f"❌ Ошибка получения заявки из Supabase: {e}")
         return None
 
+
+def update_payment_request_status(request_id: int, status: str):
+    """Обновляет статус заявки в Supabase"""
+    try:
+        supabase.table('payment_requests')\
+            .update({'status': status})\
+            .eq('id', request_id)\
+            .execute()
+        return True
+    except Exception as e:
+        logging.error(f"❌ Ошибка обновления статуса заявки: {e}")
+        return False
 
 def update_payment_request_status(request_id: int, status: str):
     """Обновляет статус заявки в Supabase"""
@@ -672,7 +688,7 @@ def save_crypto_invoice(invoice_id: str, user_id: int, tariff_key: str, amount: 
         conn.close()
         return True
     except Exception as e:
-        logging.error(f"Ошибка сохранения инвойса: {e}")
+        logging.error(f"❌ Ошибка сохранения инвойса: {e}")
         return False
 
 def get_crypto_invoice(invoice_id: str):
@@ -1308,7 +1324,7 @@ async def create_crypto_invoice(amount: float, user_id: int, tariff_key: str, as
         "description": f"Оплата тарифа {tariff_key} для пользователя {user_id}",
         "paid_btn_name": "openChannel",
         "paid_btn_url": "https://t.me/kasgd",
-        "payload": f"{user_id}_{tariff_key}"
+        "payload": f"{tariff_key}_{user_id}"  # <-- tariff_key и user_id
     }
     
     logging.info(f"📤 Запрос к CryptoBot: {url}")
@@ -1339,8 +1355,20 @@ async def create_crypto_invoice(amount: float, user_id: int, tariff_key: str, as
         return {"error": str(e)}
 
 async def send_crypto_success(user_id: int, tariff_key: str, amount: float):
-    """Выдает доступ после криптоплатежа и начисляет реферальные"""
+    """Выдает доступ после криптоплатежа (как при подтверждении заявки)"""
     try:
+        logging.info(f"💰 Криптоплатеж от {user_id} за тариф {tariff_key} на сумму {amount}")
+        
+        tariff = TARIFFS.get(tariff_key)
+        if not tariff:
+            logging.error(f"❌ Тариф {tariff_key} не найден")
+            await bot.send_message(
+                user_id,
+                "❌ Ошибка: тариф не найден. Обратитесь к администратору @kasgd"
+            )
+            return
+        
+        # ===== 1. НАЧИСЛЯЕМ РЕФЕРАЛЬНЫЕ =====
         user_response = supabase.table('users')\
             .select('ref_by')\
             .eq('user_id', user_id)\
@@ -1348,35 +1376,135 @@ async def send_crypto_success(user_id: int, tariff_key: str, amount: float):
         
         if user_response.data and user_response.data[0].get('ref_by'):
             referrer_id = user_response.data[0]['ref_by']
-            ref_amount = amount * 60
-            if tariff_key != "test677":
+            ref_amount = tariff.get('price_rub', 0) * 0.6
+            
+            if ref_amount > 0 and tariff_key != "test677":
                 add_ref_earning(user_id, referrer_id, tariff_key, ref_amount)
                 
-                await bot.send_message(
-                    referrer_id,
-                    f"💰 Вам начислено {ref_amount:.2f} ₽ за покупку вашего реферала!\n"
-                    f"📋 Ваш баланс: {get_ref_balance(referrer_id):.2f} ₽"
-                )
+                try:
+                    await bot.send_message(
+                        referrer_id,
+                        f"💰 Вам начислено {ref_amount:.2f} ₽ за покупку вашего реферала!\n"
+                        f"📋 Тариф: {tariff['name_ru']}\n"
+                        f"📊 Ваш баланс: {get_ref_balance(referrer_id):.2f} ₽"
+                    )
+                except Exception as e:
+                    logging.error(f"Ошибка уведомления реферера: {e}")
         
-        if tariff_key not in CHANNEL_IDS:
-            return
+        # ===== 2. ВЫДАЕМ ПОДПИСКУ (как при подтверждении заявки) =====
+        duration_days = tariff.get('duration_days')
         
-        chat_id = CHANNEL_IDS[tariff_key]
-        link = await create_one_time_link(chat_id)
+        if duration_days is not None:
+            expires_at = datetime.now() + timedelta(days=duration_days)
+            add_subscription(user_id, tariff_key, duration_days)
+            expires_text = format_date(expires_at)
+        else:
+            expires_at = None
+            add_subscription(user_id, tariff_key, None)
+            expires_text = "Бессрочно"
+        
+        # Отмечаем оплату в SQLite
         add_paid_tariff(user_id, tariff_key)
         
-        if link:
-            await bot.send_message(
-                user_id,
-                LANG["ru"]["payment_success"].format(link=link)
-            )
+        tariff_name = tariff['name_ru']
+        
+        # ===== 3. СОЗДАЕМ КЛЮЧ (как при подтверждении заявки) =====
+        key = create_subscription_key(tariff_key, duration_days, None)  # created_by = None для автоплатежа
+        
+        # ===== 4. ПОЛУЧАЕМ КАНАЛЫ ДЛЯ ТАРИФА =====
+        channels = get_tariff_channels(tariff_key)
+        
+        # ===== 5. ОТПРАВЛЯЕМ СООБЩЕНИЕ ПОЛЬЗОВАТЕЛЮ =====
+        if key:
+            bot_info = await bot.get_me()
+            link = f"https://t.me/{bot_info.username}?start={key}"
+            
+            text = f"""✅ <b>Оплата прошла успешно!</b>
+
+📋 Тариф: {tariff_name}
+📅 Действует до: {expires_text}
+
+🔑 <b>Ваш ключ для активации тарифа:</b>
+<code>{key}</code>
+
+🔗 <b>Ссылка для активации:</b>
+{link}
+
+⚠️ <b>Ключ одноразовый!</b>
+📌 Ваша подписка появится в разделе <b>"Мои подписки"</b> после активации ключа.
+"""
+            
+            # Если есть каналы - добавляем кнопки вступления
+            if channels:
+                buttons = []
+                for i, channel in enumerate(channels, 1):
+                    invite_link = channel.get('invite_link')
+                    if invite_link and invite_link != "0":
+                        buttons.append([InlineKeyboardButton(
+                            text=f"🔗 ВСТУПИТЬ В КАНАЛ {i}",
+                            url=invite_link
+                        )])
+                
+                buttons.append([InlineKeyboardButton(
+                    text="📋 Мои подписки",
+                    callback_data="back_to_subs"
+                )])
+                
+                await bot.send_message(
+                    user_id,
+                    text,
+                    reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
+                    disable_web_page_preview=True
+                )
+            else:
+                # Если каналов нет - просто отправляем ключ
+                await bot.send_message(
+                    user_id,
+                    text,
+                    disable_web_page_preview=True
+                )
         else:
+            # Если ключ не создался
             await bot.send_message(
                 user_id,
-                "❌ Ошибка создания ссылки. Обратитесь к @kasgd"
+                f"✅ <b>Оплата прошла успешно!</b>\n\n"
+                f"📋 Тариф: {tariff_name}\n"
+                f"📅 Действует до: {expires_text}\n\n"
+                f"❌ Ошибка создания ключа. Напишите администратору @kasgd"
             )
+        
+        # ===== 6. УВЕДОМЛЯЕМ АДМИНОВ =====
+        for admin_id in ADMIN_IDS:
+            try:
+                admin_text = f"""💳 <b>КРИПТОПЛАТЕЖ ПОДТВЕРЖДЕН!</b>
+
+👤 Пользователь: <a href='tg://user?id={user_id}'>@{user_id}</a>
+🆔 ID: <code>{user_id}</code>
+📋 Тариф: {tariff_name}
+💰 Сумма: {amount} USDT
+📅 Действует до: {expires_text}
+🔑 Ключ: <code>{key}</code>
+
+✅ Доступ выдан автоматически!"""
+                
+                await bot.send_message(admin_id, admin_text)
+            except Exception as e:
+                logging.error(f"Ошибка уведомления админа {admin_id}: {e}")
+        
+        logging.info(f"✅ Доступ выдан пользователю {user_id} для тарифа {tariff_key}")
+        
     except Exception as e:
-        logging.error(f"Ошибка в send_crypto_success: {e}")
+        logging.error(f"❌ Ошибка в send_crypto_success: {e}")
+        logging.exception(e)
+        
+        # Уведомляем пользователя об ошибке
+        try:
+            await bot.send_message(
+                user_id,
+                "❌ Произошла ошибка при выдаче доступа. Напишите администратору @kasgd"
+            )
+        except:
+            pass
 
 def round_to_half(value: float) -> float:
     return round(value * 2) / 2
@@ -1529,6 +1657,7 @@ def get_payment_request_keyboard(request_id, lang="ru"):
         [InlineKeyboardButton(text="✍️ Написать лично", callback_data=f"write_user_{request_id}")],
         [InlineKeyboardButton(text="🤖 Написать через бота", callback_data=f"write_via_bot_{request_id}")],
         [InlineKeyboardButton(text="✅ Подтвердить оплату", callback_data=f"confirm_payment_{request_id}")],
+        [InlineKeyboardButton(text="❌ Отклонить оплату", callback_data=f"reject_payment_{request_id}")],
         [InlineKeyboardButton(text="◀️ Назад", callback_data="back_to_admin")]
     ])
 
@@ -1612,6 +1741,43 @@ async def handle_join_request(update: ChatJoinRequest):
             
     except Exception as e:
         logging.error(f"❌ Ошибка обработки заявки: {e}")
+
+@dp.callback_query(F.data.startswith("reject_payment_"))
+async def reject_payment(callback: CallbackQuery):
+    if callback.from_user.id not in ADMIN_IDS:
+        await callback.answer("❌ Только для админов!", show_alert=True)
+        return
+    
+    request_id = int(callback.data.replace("reject_payment_", ""))
+    
+    # Получаем заявку
+    req = get_payment_request(request_id)
+    
+    if not req:
+        await callback.answer("❌ Заявка не найдена", show_alert=True)
+        return
+    
+    user_id = req[1]
+    username = req[2]
+    tariff_name = TARIFFS.get(req[3], {}).get('name_ru', req[3])
+    
+    # Обновляем статус заявки
+    update_payment_request_status(request_id, 'rejected')
+    
+    # Уведомляем пользователя
+    try:
+        await bot.send_message(
+            user_id,
+            f"❌ <b>Ваша заявка на оплату тарифа «{tariff_name}» отклонена!</b>\n\n"
+            f"Причина: чек не соответствует требованиям или не удалось подтвердить оплату.\n\n"
+            f"Вы можете отправить новый чек или обратиться к администратору @kasgd"
+        )
+    except Exception as e:
+        logging.error(f"Ошибка отправки уведомления пользователю: {e}")
+    
+    await callback.message.delete()
+    await callback.message.answer(f"❌ Заявка #{request_id} отклонена! Пользователь уведомлен.")
+    await callback.answer()
 
 # ==================================================
 # ХЭНДЛЕРЫ
