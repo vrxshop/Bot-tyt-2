@@ -214,8 +214,27 @@ def get_tariff_channels(tariff_key: str):
 
 
 def add_tariff_channel(tariff_key: str, channel_id: str, invite_link: str):
-    """Добавляет канал для тарифа"""
+    """Добавляет канал для тарифа, проверяя на дубликаты"""
     try:
+        # Проверяем, существует ли уже такой channel_id
+        existing = supabase.table('tariff_channels_multi')\
+            .select('id')\
+            .eq('channel_id', channel_id)\
+            .execute()
+        
+        if existing.data:
+            logging.warning(f"⚠️ Канал {channel_id} уже существует. Обновляем...")
+            # Обновляем существующую запись
+            supabase.table('tariff_channels_multi')\
+                .update({
+                    'tariff_key': tariff_key,
+                    'invite_link': invite_link
+                })\
+                .eq('channel_id', channel_id)\
+                .execute()
+            return True
+        
+        # Если не существует - добавляем
         supabase.table('tariff_channels_multi').insert({
             'tariff_key': tariff_key,
             'channel_id': channel_id,
@@ -226,6 +245,40 @@ def add_tariff_channel(tariff_key: str, channel_id: str, invite_link: str):
         logging.error(f"❌ Ошибка добавления канала: {e}")
         return False
 
+def cleanup_duplicate_channels():
+    """Очищает дублирующиеся каналы"""
+    try:
+        # Получаем все записи
+        response = supabase.table('tariff_channels_multi')\
+            .select('*')\
+            .execute()
+        
+        if not response.data:
+            return
+        
+        # Группируем по channel_id
+        seen = {}
+        to_delete = []
+        
+        for record in response.data:
+            channel_id = record['channel_id']
+            if channel_id in seen:
+                to_delete.append(record['id'])
+            else:
+                seen[channel_id] = record['id']
+        
+        # Удаляем дубликаты
+        for record_id in to_delete:
+            supabase.table('tariff_channels_multi')\
+                .delete()\
+                .eq('id', record_id)\
+                .execute()
+        
+        if to_delete:
+            logging.info(f"✅ Удалено {len(to_delete)} дублирующихся каналов")
+        
+    except Exception as e:
+        logging.error(f"❌ Ошибка очистки дубликатов: {e}")
 
 def remove_tariff_channel(channel_id: str):
     """Удаляет канал из тарифа"""
@@ -1963,7 +2016,8 @@ async def admin_multi_channel_menu(callback: CallbackQuery, state: FSMContext):
     if channels:
         for i, ch in enumerate(channels, 1):
             text += f"{i}. 🆔 {ch['channel_id']}\n"
-            text += f"   🔗 {ch['invite_link'][:50]}...\n\n"
+            text += f"   🔗 {ch['invite_link'][:50]}...\n"
+            text += f"   📌 ID записи: {ch['id']}\n\n"  # Показываем ID записи
     else:
         text += "❌ Нет добавленных каналов\n\n"
     
@@ -1974,7 +2028,14 @@ async def admin_multi_channel_menu(callback: CallbackQuery, state: FSMContext):
     ]
     
     if channels:
-        buttons.append([InlineKeyboardButton(text="🗑️ Удалить канал", callback_data=f"admin_remove_channel_{tariff_key}")])
+        # Используем ID записи для удаления
+        delete_buttons = []
+        for ch in channels:
+            delete_buttons.append(InlineKeyboardButton(
+                text=f"🗑️ Удалить {ch['channel_id']}",
+                callback_data=f"admin_del_channel_{ch['id']}"  # <-- Используем ID записи
+            ))
+        buttons.append(delete_buttons)
     
     buttons.append([InlineKeyboardButton(text="◀️ Назад", callback_data="admin_edit_channel")])
     
@@ -1983,6 +2044,15 @@ async def admin_multi_channel_menu(callback: CallbackQuery, state: FSMContext):
         reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons)
     )
 
+@dp.message(Command("cleanup_channels"))
+async def cmd_cleanup_channels(message: Message):
+    """Очищает дублирующиеся каналы (только для админов)"""
+    if message.from_user.id not in ADMIN_IDS:
+        await message.answer("❌ Только для админов!")
+        return
+    
+    cleanup_duplicate_channels()
+    await message.answer("✅ Дублирующиеся каналы очищены!")
 
 @dp.callback_query(F.data.startswith("admin_add_channel_"))
 async def admin_add_channel(callback: CallbackQuery, state: FSMContext):
@@ -2083,23 +2153,35 @@ async def admin_del_channel(callback: CallbackQuery):
     
     await callback.answer()
     
-    channel_id = callback.data.replace("admin_del_channel_", "")
+    # Получаем ID записи (не channel_id!)
+    record_id = int(callback.data.replace("admin_del_channel_", ""))
     
-    # Получаем tariff_key перед удалением
-    tariff_key = get_tariff_by_channel(channel_id)
+    # Получаем запись перед удалением
+    response = supabase.table('tariff_channels_multi')\
+        .select('tariff_key, channel_id')\
+        .eq('id', record_id)\
+        .execute()
     
-    # Удаляем канал
-    remove_tariff_channel(channel_id)
+    if not response.data:
+        await callback.message.edit_text("❌ Канал не найден.")
+        return
     
-    if tariff_key:
-        await callback.message.edit_text(
-            f"✅ Канал <code>{channel_id}</code> удален из тарифа.",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="◀️ Назад", callback_data=f"admin_multi_channel_{tariff_key}")]
-            ])
-        )
-    else:
-        await callback.message.edit_text("✅ Канал удален.")
+    record = response.data[0]
+    tariff_key = record['tariff_key']
+    channel_id = record['channel_id']
+    
+    # Удаляем запись по ID
+    supabase.table('tariff_channels_multi')\
+        .delete()\
+        .eq('id', record_id)\
+        .execute()
+    
+    await callback.message.edit_text(
+        f"✅ Канал <code>{channel_id}</code> удален из тарифа.",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="◀️ Назад", callback_data=f"admin_multi_channel_{tariff_key}")]
+        ])
+    )
 
 @dp.callback_query(F.data.startswith("admin_channel_"))
 async def admin_channel_set(callback: CallbackQuery, state: FSMContext):
