@@ -697,33 +697,6 @@ def get_payment_request(request_id: int):
         logging.error(f"❌ Ошибка получения заявки #{request_id} из Supabase: {e}")
         return None
 
-@dp.message(Command("check_table"))
-async def check_table(message: Message):
-    """Проверяет структуру таблицы payment_requests (только для админов)"""
-    if message.from_user.id not in ADMIN_IDS:
-        await message.answer("❌ Только для админов!")
-        return
-    
-    try:
-        # Проверяем, есть ли таблица
-        response = supabase.table('payment_requests')\
-            .select('*')\
-            .limit(1)\
-            .execute()
-        
-        await message.answer(f"✅ Таблица payment_requests существует!\n📊 Количество записей: {len(response.data) if response.data else 0}")
-        
-        # Показываем структуру (если есть хоть одна запись)
-        if response.data:
-            sample = response.data[0]
-            columns = ", ".join(sample.keys())
-            await message.answer(f"📋 Структура таблицы:\n{columns}")
-        else:
-            await message.answer("📋 Таблица пустая. Добавьте тестовую заявку.")
-            
-    except Exception as e:
-        await message.answer(f"❌ Ошибка: {e}\n\nВозможно таблица payment_requests не существует в Supabase!")
-
 def update_payment_request_status(request_id: int, status: str):
     """Обновляет статус заявки в Supabase"""
     try:
@@ -1865,76 +1838,32 @@ async def reject_payment(callback: CallbackQuery):
 # ХЭНДЛЕРЫ
 # ==================================================
 
-@dp.message(CommandStart())
-async def cmd_start(message: Message, state: FSMContext):
-    user_id = message.from_user.id
-    first_name = message.from_user.first_name or "Пользователь"
-    username = message.from_user.username
+@dp.message(Command("check_table"))
+async def check_table(message: Message):
+    """Проверяет структуру таблицы payment_requests (только для админов)"""
+    if message.from_user.id not in ADMIN_IDS:
+        await message.answer("❌ Только для админов!")
+        return
     
-    logging.info(f"🚀 Получена команда /start от {user_id} ({first_name})")
-    
-    ref_code = None
-    key_param = None
-    
-    if message.text and " " in message.text:
-        parts = message.text.split(maxsplit=1)
-        if len(parts) > 1:
-            param = parts[1]
-            if param.startswith("ref_"):
-                ref_code = param.replace("ref_", "")
-            else:
-                key_param = param
-    
-    add_user(user_id, first_name, username)
-    
-    if key_param:
-        key_data = get_subscription_key(key_param)
-        if key_data:
-            await process_key_activation(message, key_param, state)
-            return
+    try:
+        # Проверяем, есть ли таблица
+        response = supabase.table('payment_requests')\
+            .select('*')\
+            .limit(1)\
+            .execute()
+        
+        await message.answer(f"✅ Таблица payment_requests существует!\n📊 Количество записей: {len(response.data) if response.data else 0}")
+        
+        # Показываем структуру (если есть хоть одна запись)
+        if response.data:
+            sample = response.data[0]
+            columns = ", ".join(sample.keys())
+            await message.answer(f"📋 Структура таблицы:\n{columns}")
         else:
-            await message.answer("❌ Такого ключа не существует или он истек.")
-    
-    if ref_code:
-        referrer_id = get_referrer_by_code(ref_code)
-        if referrer_id and referrer_id != user_id:
-            user_check = supabase.table('users')\
-                .select('ref_by')\
-                .eq('user_id', user_id)\
-                .execute()
+            await message.answer("📋 Таблица пустая. Добавьте тестовую заявку.")
             
-            if user_check.data and not user_check.data[0].get('ref_by'):
-                supabase.table('users')\
-                    .update({'ref_by': referrer_id})\
-                    .eq('user_id', user_id)\
-                    .execute()
-                
-            else:
-                await message.answer("❌ Неверная реферальная ссылка.")
-    
-    await state.update_data(discount=0)
-    lang = await get_lang(state)
-    
-    welcome_text = f"""👋 Привет, {first_name}!
-Ты попал в наш бот✅
-
-Нажимая на каждый тариф ты видишь краткое описание.
-
-Если бот не доступен пиши мне
-
-Тех.поддержка: @kasgd"""
-    
-    await message.answer(
-        welcome_text,
-        reply_markup=get_main_keyboard(lang),
-        disable_web_page_preview=True
-    )
-    
-    menu_text = LANG[lang]["main_menu_text"]
-    await message.answer(
-        menu_text,
-        reply_markup=get_tariff_keyboard(lang)
-    )
+    except Exception as e:
+        await message.answer(f"❌ Ошибка: {e}\n\nВозможно таблица payment_requests не существует в Supabase!")
 
 async def process_key_activation(message: Message, key_param: str, state: FSMContext):
     user_id = message.from_user.id
@@ -2188,7 +2117,77 @@ async def cancel_mailing(message: Message, state: FSMContext):
         await message.answer("❌ Рассылка отменена.")
     else:
         await message.answer("Нет активных действий для отмены.")
+
+@dp.message(CommandStart())
+async def cmd_start(message: Message, state: FSMContext):
+    user_id = message.from_user.id
+    first_name = message.from_user.first_name or "Пользователь"
+    username = message.from_user.username
     
+    logging.info(f"🚀 Получена команда /start от {user_id} ({first_name})")
+    
+    ref_code = None
+    key_param = None
+    
+    if message.text and " " in message.text:
+        parts = message.text.split(maxsplit=1)
+        if len(parts) > 1:
+            param = parts[1]
+            if param.startswith("ref_"):
+                ref_code = param.replace("ref_", "")
+            else:
+                key_param = param
+    
+    add_user(user_id, first_name, username)
+    
+    if key_param:
+        key_data = get_subscription_key(key_param)
+        if key_data:
+            await process_key_activation(message, key_param, state)
+            return
+        else:
+            await message.answer("❌ Такого ключа не существует или он истек.")
+    
+    if ref_code:
+        referrer_id = get_referrer_by_code(ref_code)
+        if referrer_id and referrer_id != user_id:
+            user_check = supabase.table('users')\
+                .select('ref_by')\
+                .eq('user_id', user_id)\
+                .execute()
+            
+            if user_check.data and not user_check.data[0].get('ref_by'):
+                supabase.table('users')\
+                    .update({'ref_by': referrer_id})\
+                    .eq('user_id', user_id)\
+                    .execute()
+                
+            else:
+                await message.answer("❌ Неверная реферальная ссылка.")
+    
+    await state.update_data(discount=0)
+    lang = await get_lang(state)
+    
+    welcome_text = f"""👋 Привет, {first_name}!
+Ты попал в наш бот✅
+
+Нажимая на каждый тариф ты видишь краткое описание.
+
+Если бот не доступен пиши мне
+
+Тех.поддержка: @kasgd"""
+    
+    await message.answer(
+        welcome_text,
+        reply_markup=get_main_keyboard(lang),
+        disable_web_page_preview=True
+    )
+    
+    menu_text = LANG[lang]["main_menu_text"]
+    await message.answer(
+        menu_text,
+        reply_markup=get_tariff_keyboard(lang)
+    )
 
 @dp.callback_query(F.data == "admin_channels")
 async def admin_channels(callback: CallbackQuery, state: FSMContext):
