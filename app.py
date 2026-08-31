@@ -4232,12 +4232,54 @@ async def check_expired_subscriptions():
         # Ждем 12 часов перед следующей проверкой
         await asyncio.sleep(43200)
 
+# ==================================================
+# ОСНОВНАЯ ФУНКЦИЯ ЗАПУСКА
+# ==================================================
+
+async def main():
+    """Главная функция запуска бота"""
+    logging.basicConfig(level=logging.INFO)
+    
+    # Проверка наличия токена
+    if not BOT_TOKEN:
+        logging.error("❌ BOT_TOKEN не задан в переменных окружения!")
+        return
+    
+    # Инициализация SQLite (если используется)
+    init_db()
+    
+    # Вывод информации о запуске
+    print("=" * 60)
+    print("🚀 БОТ ЗАПУЩЕН!")
+    print(f"🤖 BOT_TOKEN: {'✅' if BOT_TOKEN else '❌'}")
+    print(f"🪙 CRYPTO_TOKEN: {'✅' if CRYPTOBOT_API_KEY else '❌'}")
+    print(f"🗄️ SUPABASE: {'✅' if SUPABASE_URL and SUPABASE_KEY else '❌'}")
+    print(f"👥 Админы: {', '.join(str(a) for a in ADMIN_IDS)}")
+    print("=" * 60)
+    
+    # Запуск фоновой задачи проверки подписок
+    asyncio.create_task(check_expired_subscriptions())
+    
+    # Удаляем вебхук и запускаем поллинг
+    await bot.delete_webhook(drop_pending_updates=True)
+    await dp.start_polling(bot)
+
+
+# ==================================================
+# ЗАПУСК
+# ==================================================
+
 def run_flask():
+    """Запуск Flask в отдельном потоке"""
     port = int(os.environ.get("PORT", 8080))
     flask_app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
 
+
 if __name__ == "__main__":
+    # Запускаем Flask в фоновом потоке
     flask_thread = threading.Thread(target=run_flask, daemon=True)
     flask_thread.start()
     print("✅ Flask запущен в фоновом потоке!")
+    
+    # Запускаем основного бота
     asyncio.run(main())
