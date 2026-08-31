@@ -4948,6 +4948,92 @@ def run_flask():
     port = int(os.environ.get("PORT", 8080))
     flask_app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
 
+@dp.message(Command("test_confirm"))
+async def test_confirm(message: Message):
+    """Тестирует подтверждение заявки (только для админов)"""
+    if message.from_user.id not in ADMIN_IDS:
+        await message.answer("❌ Только для админов!")
+        return
+    
+    try:
+        request_id = int(message.text.split()[1])
+    except:
+        await message.answer("❌ Использование: /test_confirm <id>")
+        return
+    
+    # Проверяем в Supabase
+    response = supabase.table('payment_requests')\
+        .select('*')\
+        .eq('id', request_id)\
+        .execute()
+    
+    if response.data:
+        data = response.data[0]
+        user_id = data['user_id']
+        tariff_key = data['tariff_key']
+        
+        await message.answer(
+            f"📋 Найдена заявка #{request_id}:\n"
+            f"👤 user_id: {user_id}\n"
+            f"🏷️ tariff_key: {tariff_key}\n"
+            f"📊 status: {data['status']}\n\n"
+            f"✅ Попробуйте подтвердить через админ-панель"
+        )
+        
+        # Проверяем, есть ли пользователь в базе
+        user_check = supabase.table('users')\
+            .select('*')\
+            .eq('user_id', user_id)\
+            .execute()
+        
+        if user_check.data:
+            await message.answer(f"✅ Пользователь {user_id} найден в базе users")
+        else:
+            await message.answer(f"❌ Пользователь {user_id} НЕ НАЙДЕН в базе users!")
+    else:
+        await message.answer(f"❌ Заявка #{request_id} не найдена в Supabase!")
+
+
+@dp.message(Command("send_test_key"))
+async def send_test_key(message: Message):
+    """Отправляет тестовый ключ пользователю (только для админов)"""
+    if message.from_user.id not in ADMIN_IDS:
+        await message.answer("❌ Только для админов!")
+        return
+    
+    try:
+        parts = message.text.split()
+        user_id = int(parts[1])
+        tariff_key = parts[2] if len(parts) > 2 else "1"
+    except:
+        await message.answer("❌ Использование: /send_test_key <user_id> <tariff_key>")
+        return
+    
+    tariff = TARIFFS.get(tariff_key)
+    if not tariff:
+        await message.answer(f"❌ Тариф {tariff_key} не найден!")
+        return
+    
+    duration_days = tariff.get('duration_days')
+    key = create_subscription_key(tariff_key, duration_days, message.from_user.id)
+    
+    if key:
+        bot_info = await bot.get_me()
+        link = f"https://t.me/{bot_info.username}?start={key}"
+        
+        text = f"""✅ <b>Тестовый ключ!</b>
+
+📋 Тариф: {tariff['name_ru']}
+🔑 Ключ: <code>{key}</code>
+🔗 Ссылка: {link}"""
+        
+        try:
+            await bot.send_message(user_id, text, disable_web_page_preview=True)
+            await message.answer(f"✅ Ключ отправлен пользователю {user_id}!")
+        except Exception as e:
+            await message.answer(f"❌ Ошибка отправки: {e}")
+    else:
+        await message.answer("❌ Ошибка создания ключа!")
 
 if __name__ == "__main__":
     # Запускаем Flask в фоновом потоке
