@@ -1667,7 +1667,7 @@ def get_payment_method_keyboard(tariff_key, discount_percent=0, lang="ru"):
         btn_crypto = LANG[lang]["btn_pay_crypto"]
 
     return InlineKeyboardMarkup(inline_keyboard=[
-        # [InlineKeyboardButton(text=btn_card, callback_data=f"pay_card_{tariff_key}_{discount_percent}")],
+        [InlineKeyboardButton(text=btn_card, callback_data=f"pay_card_{tariff_key}_{discount_percent}")],
         [InlineKeyboardButton(text=btn_stars, callback_data=f"pay_stars_{tariff_key}_{discount_percent}")],
         [InlineKeyboardButton(text=btn_crypto, callback_data=f"pay_crypto_{tariff_key}_{discount_percent}")],
         [InlineKeyboardButton(text=LANG[lang]["btn_back"], callback_data="back_to_prices")]
