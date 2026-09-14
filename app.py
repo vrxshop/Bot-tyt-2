@@ -205,6 +205,28 @@ def expire_subscription(user_id: int, tariff_key: str):
         logging.error(f"Ошибка отметки подписки: {e}")
         return False
 
+def grant_all_inclusive(user_id: int):
+    """Выдаёт ВСЕ тарифы (кроме 11, 12 и тестовых) навсегда"""
+    for tariff_key, tariff in TARIFFS.items():
+        # Пропускаем сам "всё включено", пробник и тестовые
+        if tariff_key in ("11", "12", "test", "test677"):
+            continue
+        
+        existing = get_subscription_by_tariff(user_id, tariff_key)
+        if not existing:
+            add_subscription(user_id, tariff_key, None)  # None = бессрочно
+        else:
+            # Если уже есть — делаем бессрочной
+            supabase.table('subscriptions')\
+                .update({'expires_at': None, 'status': 'active'})\
+                .eq('user_id', user_id)\
+                .eq('tariff_key', tariff_key)\
+                .execute()
+        
+        add_paid_tariff(user_id, tariff_key)
+    
+    logging.info(f"✅ Пользователю {user_id} выдан тариф «Всё включено» (все тарифы навсегда)")
+
 # ==================================================
 # ФУНКЦИИ РАБОТЫ С МНОЖЕСТВЕННЫМИ КАНАЛАМИ (Supabase)
 # ==================================================
@@ -1131,7 +1153,7 @@ TARIFFS = {
     "1": {
         "name_ru": "🔮2000 медиа✅",
         "name_en": "🔮2000 media✅",
-        "price_rub": 199,
+        "price_rub": 249,
         "price_stars": 199,
         "duration_ru": "1 месяц",
         "duration_en": "1 month",
@@ -1140,48 +1162,37 @@ TARIFFS = {
         "desc_ru": "2000/100ГБ отб0рного koнtента🔮 Для тех кто хочет проверить контент"
     },
     "2": {
-        "name_ru": "🔮4000 медиа✅",
-        "name_en": "🔮4000 media✅",
-        "price_rub": 299,
-        "price_stars": 299,
+        "name_ru": "💜Альтywки💫",
+        "name_en": "💜Alt girls💫",
+        "price_rub": 249,
+        "price_stars": 249,
         "duration_ru": "1 месяц",
         "duration_en": "1 month",
         "duration_days": 30,
         "category": "main",
-        "desc_ru": "4000/200 ГБ отб0рного koнtента🔮 Маленький пак"
+        "desc_ru": "Свежий сборник ваших любимых сочных альт девушек 2025-2026 \n\n60Гб💫"
     },
     "3": {
-        "name_ru": "🔮6000 медиа✅",
-        "name_en": "🔮6000 media✅",
+        "name_ru": "📹Сkpыtые kаmеры🔞",
+        "name_en": "📹Hidden cameras🔞",
         "price_rub": 399,
         "price_stars": 399,
         "duration_ru": "1 месяц",
         "duration_en": "1 month",
         "duration_days": 30,
         "category": "main",
-        "desc_ru": "6000/300 ГБ отб0рного koнtента🔮 Средний пак"
+        "desc_ru": "Сkpыtые kаmеры в хостелах, домах, ваннах, туалетах, спальнях, ты увидишь то, что они бы не хотели чтоб ктото узнал, без цeн3уpы\n\n90ГБ✔"
     },
     "4": {
-        "name_ru": "🔮8000 медиа ✅",
-        "name_en": "🔮8000 media ✅",
-        "price_rub": 499,
-        "price_stars": 499,
+        "name_ru": "👩‍🎓Студентки📚",
+        "name_en": "👩‍🎓Students📚",
+        "price_rub": 249,
+        "price_stars": 249,
         "duration_ru": "1 месяц",
         "duration_en": "1 month",
         "duration_days": 30,
         "category": "main",
-        "desc_ru": "8000/400 ГБ отб0рного koнtента🔮 ✅Выбор наших пользователей✅ большой пак уже есть много что посмотреть"
-    },
-    "5": {
-        "name_ru": "🔮10000 медиа✅",
-        "name_en": "🔮10000 media✅",
-        "price_rub": 550,
-        "price_stars": 550,
-        "duration_ru": "1 месяц",
-        "duration_en": "1 month",
-        "duration_days": 30,
-        "category": "main",
-        "desc_ru": "10000 видео/500ГБ отб0рного koнtента🔮 Очень большой пак хватит на очень долго подойдет для всех"
+        "desc_ru": "Молодые студентки показывают прелести, Dрочат на kамеру, uграютс подругами\n\n40ГБ✅"
     },
     "6": {
         "name_ru": "🪷Wк0льницы🪻",
@@ -1241,8 +1252,8 @@ TARIFFS = {
     "11": {
         "name_ru": "🫦Все включено 2026✅",
         "name_en": "🫦All inclusive 2026✅",
-        "price_rub": 999,
-        "price_stars": 999,
+        "price_rub": 1399,
+        "price_stars": 1399,
         "duration_ru": "Бессрочно",
         "duration_en": "Forever",
         "duration_days": None,
@@ -1396,7 +1407,7 @@ async def create_crypto_invoice(amount: float, user_id: int, tariff_key: str, as
         return {"error": str(e)}
 
 async def send_crypto_success(user_id: int, tariff_key: str, amount: float):
-    """Выдает доступ после криптоплатежа (как при подтверждении заявки)"""
+    """Выдает доступ после криптоплатежа"""
     try:
         logging.info(f"💰 Криптоплатеж от {user_id} за тариф {tariff_key} на сумму {amount}")
         
@@ -1432,15 +1443,19 @@ async def send_crypto_success(user_id: int, tariff_key: str, amount: float):
                 except Exception as e:
                     logging.error(f"Ошибка уведомления реферера: {e}")
         
-        # ===== 2. ВЫДАЕМ ПОДПИСКУ (как при подтверждении заявки) =====
+        # ===== 2. ВЫДАЕМ ПОДПИСКУ =====
         duration_days = tariff.get('duration_days')
         
-        if duration_days is not None:
+        if tariff_key == "11":
+            # «Всё включено» — выдаём ВСЕ тарифы навсегда
+            grant_all_inclusive(user_id)
+            add_subscription(user_id, "11", None)
+            expires_text = "Бессрочно"
+        elif duration_days is not None:
             expires_at = datetime.now() + timedelta(days=duration_days)
             add_subscription(user_id, tariff_key, duration_days)
             expires_text = format_date(expires_at)
         else:
-            expires_at = None
             add_subscription(user_id, tariff_key, None)
             expires_text = "Бессрочно"
         
@@ -1449,11 +1464,19 @@ async def send_crypto_success(user_id: int, tariff_key: str, amount: float):
         
         tariff_name = tariff['name_ru']
         
-        # ===== 3. СОЗДАЕМ КЛЮЧ (как при подтверждении заявки) =====
-        key = create_subscription_key(tariff_key, duration_days, None)  # created_by = None для автоплатежа
+        # ===== 3. СОЗДАЕМ КЛЮЧ =====
+        key = create_subscription_key(tariff_key, duration_days, None)
         
         # ===== 4. ПОЛУЧАЕМ КАНАЛЫ ДЛЯ ТАРИФА =====
-        channels = get_tariff_channels(tariff_key)
+        if tariff_key == "11":
+            # Собираем каналы ВСЕХ тарифов
+            channels = []
+            for tk in TARIFFS.keys():
+                if tk in ("11", "12", "test", "test677"):
+                    continue
+                channels.extend(get_tariff_channels(tk))
+        else:
+            channels = get_tariff_channels(tariff_key)
         
         # ===== 5. ОТПРАВЛЯЕМ СООБЩЕНИЕ ПОЛЬЗОВАТЕЛЮ =====
         if key:
@@ -1475,7 +1498,6 @@ async def send_crypto_success(user_id: int, tariff_key: str, amount: float):
 📌 Ваша подписка появится в разделе <b>"Мои подписки"</b> после активации ключа.
 """
             
-            # Если есть каналы - добавляем кнопки вступления
             if channels:
                 buttons = []
                 for i, channel in enumerate(channels, 1):
@@ -1498,14 +1520,12 @@ async def send_crypto_success(user_id: int, tariff_key: str, amount: float):
                     disable_web_page_preview=True
                 )
             else:
-                # Если каналов нет - просто отправляем ключ
                 await bot.send_message(
                     user_id,
                     text,
                     disable_web_page_preview=True
                 )
         else:
-            # Если ключ не создался
             await bot.send_message(
                 user_id,
                 f"✅ <b>Оплата прошла успешно!</b>\n\n"
@@ -1538,7 +1558,6 @@ async def send_crypto_success(user_id: int, tariff_key: str, amount: float):
         logging.error(f"❌ Ошибка в send_crypto_success: {e}")
         logging.exception(e)
         
-        # Уведомляем пользователя об ошибке
         try:
             await bot.send_message(
                 user_id,
@@ -1721,6 +1740,29 @@ def get_access_keyboard(tariff_key, lang="ru"):
     buttons.append([InlineKeyboardButton(text=LANG[lang]["btn_buy_other"], callback_data="back_to_prices")])
     buttons.append([InlineKeyboardButton(text=LANG[lang]["btn_back"], callback_data="back_to_subs")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+def grant_all_inclusive(user_id: int):
+    """Выдаёт ВСЕ тарифы (кроме 11, 12 и тестовых) навсегда"""
+    for tariff_key, tariff in TARIFFS.items():
+        # Пропускаем сам "всё включено", пробник и тестовые
+        if tariff_key in ("11", "12", "test", "test677"):
+            continue
+        
+        # Выдаём бессрочную подписку
+        existing = get_subscription_by_tariff(user_id, tariff_key)
+        if not existing:
+            add_subscription(user_id, tariff_key, None)  # None = бессрочно
+        else:
+            # Если уже есть — делаем бессрочной
+            supabase.table('subscriptions')\
+                .update({'expires_at': None, 'status': 'active'})\
+                .eq('user_id', user_id)\
+                .eq('tariff_key', tariff_key)\
+                .execute()
+        
+        add_paid_tariff(user_id, tariff_key)
+    
+    logging.info(f"✅ Пользователю {user_id} выдан тариф «Всё включено» (все тарифы навсегда)")
 
 # ==================================================
 # ОБРАБОТЧИК ЗАЯВОК В КАНАЛ
@@ -1921,27 +1963,34 @@ async def process_key_activation(message: Message, key_param: str, state: FSMCon
     
     tariff_name = tariff['name_ru'] if lang == "ru" else tariff['name_en']
     
-    existing_sub = get_subscription_by_tariff(user_id, tariff_key)
-    
-    if existing_sub:
-        if duration_days is not None:
-            extend_subscription(user_id, tariff_key, duration_days)
-            expires_at = datetime.now() + timedelta(days=duration_days)
-        else:
-            expires_at = None
+    # ===== ВЫДАЁМ ПОДПИСКУ =====
+    if tariff_key == "11":
+        # «Всё включено» — выдаём ВСЕ тарифы навсегда
+        grant_all_inclusive(user_id)
+        add_subscription(user_id, "11", None)
+        expires_text = "Бессрочно"
     else:
-        if duration_days is not None:
-            expires_at = datetime.now() + timedelta(days=duration_days)
+        existing_sub = get_subscription_by_tariff(user_id, tariff_key)
+        
+        if existing_sub:
+            if duration_days is not None:
+                extend_subscription(user_id, tariff_key, duration_days)
+                expires_at = datetime.now() + timedelta(days=duration_days)
+            else:
+                expires_at = None
         else:
-            expires_at = None
-        add_subscription(user_id, tariff_key, duration_days)
+            if duration_days is not None:
+                expires_at = datetime.now() + timedelta(days=duration_days)
+            else:
+                expires_at = None
+            add_subscription(user_id, tariff_key, duration_days)
+        
+        if duration_days is not None:
+            expires_text = format_date(expires_at)
+        else:
+            expires_text = "Бессрочно"
     
     delete_subscription_key(key_param)
-    
-    if duration_days is not None:
-        expires_text = format_date(expires_at)
-    else:
-        expires_text = "Бессрочно"
     
     text = f"✅ <b>Ваш ключ активирован!</b>\n\n"
     text += f"📋 Вы получили <b>«{tariff_name}»</b>\n"
@@ -1950,7 +1999,7 @@ async def process_key_activation(message: Message, key_param: str, state: FSMCon
     
     await message.answer(text)
     
-    # ===== НАЧИСЛЕНИЕ РЕФЕРАЛЬНЫХ (ПРИ АКТИВАЦИИ ЛЮБОГО КЛЮЧА) =====
+    # ===== НАЧИСЛЕНИЕ РЕФЕРАЛЬНЫХ =====
     user_response = supabase.table('users')\
         .select('ref_by')\
         .eq('user_id', user_id)\
@@ -1959,14 +2008,12 @@ async def process_key_activation(message: Message, key_param: str, state: FSMCon
     if user_response.data and user_response.data[0].get('ref_by'):
         referrer_id = user_response.data[0]['ref_by']
         
-        # Получаем цену тарифа из TARIFFS
         amount = tariff.get('price_rub', 0)
-        ref_amount = amount * 0.6  # 60% от стоимости тарифа
+        ref_amount = amount * 0.6
         
         if ref_amount > 0 and tariff_key != "test677":
             add_ref_earning(user_id, referrer_id, tariff_key, ref_amount)
             
-            # Уведомляем реферера
             try:
                 await bot.send_message(
                     referrer_id,
@@ -4670,7 +4717,13 @@ async def confirm_payment(callback: CallbackQuery):
             tariff = TARIFFS.get(tariff_key)
             duration_days = tariff.get('duration_days') if tariff else None
             
-            if duration_days is not None:
+            if tariff_key == "11":
+                # «Всё включено» — выдаём ВСЕ тарифы навсегда
+                grant_all_inclusive(user_id)
+                add_subscription(user_id, "11", None)
+                expires_text = "Бессрочно"
+                expires_at = None
+            elif duration_days is not None:
                 expires_at = datetime.now() + timedelta(days=duration_days)
                 add_subscription(user_id, tariff_key, duration_days)
                 expires_text = format_date(expires_at)
