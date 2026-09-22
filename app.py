@@ -1197,8 +1197,8 @@ TARIFFS = {
     "6": {
         "name_ru": "🪷Wк0льницы🪻",
         "name_en": "🪷schoolgirls🪻",
-        "price_rub": 279,
-        "price_stars": 279,
+        "price_rub": 339,
+        "price_stars": 339,
         "duration_ru": "1 месяц",
         "duration_en": "1 month",
         "duration_days": 30,
@@ -1208,13 +1208,13 @@ TARIFFS = {
     "7": {
         "name_ru": "🏫в wk0ле шk0льницы👩‍🎓",
         "name_en": "🏫schoolgirls at school👩‍🎓",
-        "price_rub": 399,
-        "price_stars": 399,
+        "price_rub": 429,
+        "price_stars": 429,
         "duration_ru": "1 месяц",
         "duration_en": "1 month",
         "duration_days": 30,
         "category": "main",
-        "desc_ru": "50ГБ Самого отборного контента из всех школ россии✅, только качевственный свежий контент из Wkoл россии в отличном качестве🔮 Вы точно найдете то что искали\n\n45 ГБ✅"
+        "desc_ru": "45ГБ Самого отборного контента из всех школ россии✅, только качевственный свежий контент из Wkoл россии в отличном качестве🔮 Вы точно найдете то что искали\n\n45 ГБ✅"
     },
     "8": {
         "name_ru": "🔮₽абыни + с/\ивы + krужки ✅",
