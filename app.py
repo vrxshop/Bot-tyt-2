@@ -1153,107 +1153,107 @@ TARIFFS = {
     "1": {
         "name_ru": "🔮2000 медиа✅",
         "name_en": "🔮2000 media✅",
-        "price_rub": 370,
-        "price_stars": 370,
+        "price_rub": 249,
+        "price_stars": 249,
         "duration_ru": "1 месяц",
         "duration_en": "1 month",
         "duration_days": 30,
         "category": "main",
-        "desc_ru": "2000/200ГБ отб0рного koнtента🔮 Для тех кто хочет проверить контент"
+        "desc_ru": "2000/100ГБ отб0рного koнtента🔮 Для тех кто хочет проверить контент"
     },
     "2": {
         "name_ru": "💜Альтywки💫",
         "name_en": "💜Alt girls💫",
-        "price_rub": 370,
-        "price_stars": 370,
+        "price_rub": 249,
+        "price_stars": 249,
         "duration_ru": "1 месяц",
         "duration_en": "1 month",
         "duration_days": 30,
         "category": "main",
-        "desc_ru": "Свежий сборник ваших любимых сочных альт девушек 2025-2026 \n\n120Гб💫"
+        "desc_ru": "Свежий сборник ваших любимых сочных альт девушек 2025-2026 \n\n60Гб💫"
     },
     "3": {
         "name_ru": "📹Сkpыtые kаmеры🔞",
         "name_en": "📹Hidden cameras🔞",
-        "price_rub": 600,
-        "price_stars": 600,
+        "price_rub": 399,
+        "price_stars": 399,
         "duration_ru": "1 месяц",
         "duration_en": "1 month",
         "duration_days": 30,
         "category": "main",
-        "desc_ru": "Сkpыtые kаmеры в хостелах, домах, ваннах, туалетах, спальнях, ты увидишь то, что они бы не хотели чтоб ктото узнал, без цeн3уpы\n\n180ГБ✔"
+        "desc_ru": "Сkpыtые kаmеры в хостелах, домах, ваннах, туалетах, спальнях, ты увидишь то, что они бы не хотели чтоб ктото узнал, без цeн3уpы\n\n90ГБ✔"
     },
     "4": {
         "name_ru": "👩‍🎓Студентки📚",
         "name_en": "👩‍🎓Students📚",
-        "price_rub": 370,
-        "price_stars": 370,
+        "price_rub": 249,
+        "price_stars": 249,
         "duration_ru": "1 месяц",
         "duration_en": "1 month",
         "duration_days": 30,
         "category": "main",
-        "desc_ru": "Молодые студентки показывают прелести, Dрочат на kамеру, uграютс подругами\n\n80ГБ✅"
+        "desc_ru": "Молодые студентки показывают прелести, Dрочат на kамеру, uграютс подругами\n\n40ГБ✅"
     },
     "6": {
         "name_ru": "🪷Wк0льницы🪻",
         "name_en": "🪷schoolgirls🪻",
-        "price_rub": 510,
-        "price_stars": 510,
+        "price_rub": 339,
+        "price_stars": 339,
         "duration_ru": "1 месяц",
         "duration_en": "1 month",
         "duration_days": 30,
         "category": "main",
-        "desc_ru": "✅Пополнение✅ K0нtент с шко/\ницами 7-14 lvl со всего снг\n\nВАЖНО! В этом тарифе контент с Deвочkами 7-16 lvl, а не в школе, если хотите в школе смотрите тариф \"в школе школьницы\" На один тариф ниже\n\n160 ГБ👩‍🎓"
+        "desc_ru": "✅Пополнение✅ K0нtент с шко/\ницами 7-14 lvl со всего снг\n\nВАЖНО! В этом тарифе контент с Deвочkами 7-16 lvl, а не в школе, если хотите в школе смотрите тариф \"в школе школьницы\" На один тариф ниже\n\n80 ГБ👩‍🎓"
     },
     "7": {
         "name_ru": "🏫в wk0ле шk0льницы👩‍🎓",
         "name_en": "🏫schoolgirls at school👩‍🎓",
-        "price_rub": 640,
-        "price_stars": 640,
+        "price_rub": 429,
+        "price_stars": 429,
         "duration_ru": "1 месяц",
         "duration_en": "1 month",
         "duration_days": 30,
         "category": "main",
-        "desc_ru": "90ГБ Самого отборного контента из всех школ россии✅, только качевственный свежий контент из Wkoл россии в отличном качестве🔮 Вы точно найдете то что искали\n\n90 ГБ✅"
+        "desc_ru": "45ГБ Самого отборного контента из всех школ россии✅, только качевственный свежий контент из Wkoл россии в отличном качестве🔮 Вы точно найдете то что искали\n\n45 ГБ✅"
     },
     "8": {
         "name_ru": "🔮₽абыни + с/\ивы + krужки ✅",
         "name_en": "🔮Slaves + Leaks + Mugs ✅",
-        "price_rub": 450,
-        "price_stars": 450,
+        "price_rub": 299,
+        "price_stars": 299,
         "duration_ru": "1 месяц",
         "duration_en": "1 month",
         "duration_days": 30,
         "category": "main",
-        "desc_ru": "Большой тариф, сливы кружков p@bынь, Wkольнuц, sтуденток, вып0лняют задания, поkазывают с3бя, вы точно найдете то что вам по душе✅\n\n140 ГБ✅"
+        "desc_ru": "Большой тариф, сливы кружков p@bынь, Wkольнuц, sтуденток, вып0лняют задания, поkазывают с3бя, вы точно найдете то что вам по душе✅\n\n70 ГБ✅"
     },
     "9": {
         "name_ru": "🔨Uzносы + 3аklадчицы + Сп0₽тики🩸",
         "name_en": "🔨Assault + Stashes + Athletes🩸",
-        "price_rub": 520,
-        "price_stars": 520,
+        "price_rub": 349,
+        "price_stars": 349,
         "duration_ru": "1 месяц",
         "duration_en": "1 month",
         "duration_days": 30,
         "category": "main",
-        "desc_ru": "И3но$илования д3вушек дома, в bанне, в ле$у, избиение спо₽тиками на снегу, асвальте, ₽аздевают, з@сtавляют ¢осать✅\n\n80 ГБ✅"
+        "desc_ru": "И3но$илования д3вушек дома, в bанне, в ле$у, избиение спо₽тиками на снегу, асвальте, ₽аздевают, з@сtавляют ¢осать✅\n\n40 ГБ✅"
     },
     "10": {
         "name_ru": "🔮Мл@денцы 0-5 lvl🔮",
         "name_en": "🔮Babies 0-5 lvl🔮",
-        "price_rub": 600,
-        "price_stars": 600,
+        "price_rub": 399,
+        "price_stars": 399,
         "duration_ru": "1 месяц",
         "duration_en": "1 month",
         "duration_days": 30,
         "category": "main",
-        "desc_ru": "Видео с mлад3нцами и ново₽ожdенными самый во3раст✅\n\n110 ГБ ✅"
+        "desc_ru": "Видео с mлад3нцами и ново₽ожdенными самый во3раст✅\n\n55 ГБ ✅"
     },
     "11": {
         "name_ru": "🫦Все включено 2026✅",
         "name_en": "🫦All inclusive 2026✅",
-        "price_rub": 2100,
-        "price_stars": 2100,
+        "price_rub": 1399,
+        "price_stars": 1399,
         "duration_ru": "Бессрочно",
         "duration_en": "Forever",
         "duration_days": None,
